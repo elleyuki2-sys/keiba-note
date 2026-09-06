@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#111827">
+  <title>KEIBA NOTE</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="app-header">
+    <div>
+      <p class="eyebrow">KEIBA NOTE</p>
+      <h1>競馬収支管理</h1>
+    </div>
+    <button id="addButton" class="primary-button">＋ 収支を記録</button>
+  </header>
+
+  <main class="container">
+    <section class="summary-grid">
+      <div class="summary-card main-card">
+        <span>現在の収支</span>
+        <strong id="totalProfit">¥0</strong>
+        <small id="totalInvestment">投資 ¥0</small>
+      </div>
+      <div class="summary-card">
+        <span>回収率</span>
+        <strong id="recoveryRate">0.0%</strong>
+      </div>
+      <div class="summary-card">
+        <span>的中率</span>
+        <strong id="hitRate">0.0%</strong>
+      </div>
+      <div class="summary-card">
+        <span>記録レース</span>
+        <strong id="raceCount">0</strong>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="section-heading">
+        <div>
+          <p class="eyebrow">HISTORY</p>
+          <h2>最近の収支</h2>
+        </div>
+        <button id="clearButton" class="text-button">全データ削除</button>
+      </div>
+      <div id="emptyState" class="empty-state">
+        <div class="empty-icon">🏇</div>
+        <h3>まだ収支データがありません</h3>
+        <p>「収支を記録」から最初のレースを登録しましょう。</p>
+      </div>
+      <div id="records" class="records"></div>
+    </section>
+  </main>
+
+  <div id="modal" class="modal hidden">
+    <div class="modal-backdrop"></div>
+    <div class="modal-card">
+      <div class="modal-header">
+        <div>
+          <p class="eyebrow">NEW RECORD</p>
+          <h2>馬券を記録</h2>
+        </div>
+        <button id="closeButton" class="close-button">×</button>
+      </div>
+
+      <form id="recordForm">
+        <div class="form-grid">
+          <label>
+            日付
+            <input id="date" type="date" required>
+          </label>
+          <label>
+            競馬場
+            <select id="course" required>
+              <option value="">選択してください</option>
+              <option>札幌</option><option>函館</option><option>福島</option>
+              <option>新潟</option><option>東京</option><option>中山</option>
+              <option>中京</option><option>京都</option><option>阪神</option><option>小倉</option>
+            </select>
+          </label>
+          <label>
+            レース
+            <input id="race" type="number" min="1" max="12" placeholder="7" required>
+          </label>
+          <label>
+            馬券種
+            <select id="betType" required>
+              <option>複勝</option><option>ワイド</option><option>単勝</option>
+              <option>馬連</option><option>馬単</option><option>三連複</option><option>三連単</option>
+            </select>
+          </label>
+          <label>
+            購入金額
+            <input id="investment" type="number" min="0" step="100" placeholder="500" required>
+          </label>
+          <label>
+            払戻金額
+            <input id="returnAmount" type="number" min="0" step="10" placeholder="850" required>
+          </label>
+          <label class="full">
+            購入内容・メモ
+            <input id="memo" type="text" maxlength="100" placeholder="例：7番複勝 / 本命">
+          </label>
+        </div>
+        <button class="primary-button submit-button" type="submit">記録する</button>
+      </form>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
