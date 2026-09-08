@@ -1,12 +1,16 @@
 <!doctype html><html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>KEIBA NOTE</title><link rel="stylesheet" href="style.css"></head><body>
-<header><div><small>KEIBA NOTE</small><h1>競馬収支管理</h1></div><button id="add">＋ 収支を記録</button></header><main>
+<header><div><small>KEIBA NOTE V4</small><h1>競馬収支管理</h1></div><button id="add">＋ 収支を記録</button></header>
+<main>
 <section class="summary" id="summary"></section>
-<section class="panel"><h2 id="monthTitle">今月の成績</h2><div class="monthly" id="monthly"></div></section>
+<section class="panel"><div class="head"><h2 id="periodTitle">今月の成績</h2><div class="tabs"><button class="tab active" data-period="month">月</button><button class="tab" data-period="year">年</button></div></div><div class="monthly" id="periodStats"></div></section>
 <section class="panel"><h2>② 馬券種別の成績</h2><div class="bets" id="bets"></div></section>
+<section class="panel"><h2>⑤ 競馬場別成績</h2><div class="courseGrid" id="courses"></div></section>
 <section class="panel"><div class="head"><h2>④ 月別収支グラフ</h2><select id="months"><option value="6">直近6か月</option><option value="12">直近12か月</option></select></div><canvas id="chart"></canvas></section>
+<section class="panel"><div class="head"><h2>⑦ 収支カレンダー</h2><div class="calendarNav"><button id="prevMonth">‹</button><b id="calendarTitle"></b><button id="nextMonth">›</button></div></div><div id="calendar" class="calendar"></div></section>
+<section class="panel"><h2>⑧ 的中率・回収率ランキング</h2><div class="rankGrid"><div><h3>回収率</h3><div id="returnRank"></div></div><div><h3>的中率</h3><div id="hitRank"></div></div></div></section>
 <section class="panel"><div class="head"><h2>収支履歴</h2><button id="clear" class="text">全データ削除</button></div><div id="records"></div></section>
 </main>
 <div id="modal" class="modal hide"><div class="box"><div class="head"><h2 id="mtitle">収支を記録</h2><button id="close">×</button></div><form id="form"><div class="form">
 <label>日付<input id="date" type="date" required></label><label>競馬場<select id="course" required><option value="">選択</option><option>札幌</option><option>函館</option><option>福島</option><option>新潟</option><option>東京</option><option>中山</option><option>中京</option><option>京都</option><option>阪神</option><option>小倉</option></select></label>
-<label>レース<input id="race" type="number" min="1" max="12" required></label><label>馬券種<select id="type"><option>複勝</option><option>ワイド</option><option>単勝</option><option>馬連</option><option>馬単</option><option>三連複</option><option>三連単</option></select></label>
+<label>レース<input id="race" type="number" min="1" max="12" required></label><label>馬券種<select id="type"><option>複勝</option><option>ワイド</option><option>単勝</option><option>馬連</option><option>馬単</option><option>三連複</option><option>三連単</option><option>その他</option></select></label>
 <label>購入金額<input id="inv" type="number" min="0" step="100" required></label><label>払戻金額<input id="ret" type="number" min="0" step="10" required></label><label class="full">メモ<input id="memo" maxlength="100"></label></div><button class="save" id="save" type="submit">記録する</button></form></div></div><script src="app.js"></script></body></html>
