@@ -1,18 +1,19 @@
-# KEIBA NOTE V4
+# KEIBA NOTE V5.1
 
-競馬の馬券収支を記録・分析するブラウザアプリです。
+V4の収支管理機能を維持しながら、Supabase Freeを使ったPC・iPhoneクラウド同期、ログイン、V4データ移行、JSONバックアップ/復元を追加した版です。
 
-## V4の追加・修正
-- ¥NaN / undefined対策：保存済みデータを読み込み時に正規化
-- 不正な数値、カンマ入り数値、空値などを安全に処理
-- 未設定の馬券種別を「その他」に統一
-- ⑤ 競馬場別成績
-- ⑥ 月別・年別成績切り替え
-- ⑦ 収支カレンダー
-- ⑧ 的中率・回収率ランキング
-- V3までの機能を維持
-- localStorageキーは `keiba-note-records-v1` を継続使用し、既存データを引き継ぎ
+## セットアップ
+1. SupabaseでFreeプロジェクトを作成。
+2. SQL Editorで `supabase.sql` を全量実行。
+3. Settings > API Keys から Project URL と Publishable key を確認。
+4. `config.js` の `YOUR_SUPABASE_URL` と `YOUR_SUPABASE_PUBLISHABLE_KEY` を置き換える。
+5. `index.html` / `app.js` / `style.css` / `config.js` をGitHub Pagesへアップロード。
+6. PCで新規登録またはログイン。
+7. 初回ログイン時にV4のlocalStorageデータがあれば、クラウドへ移行する確認が出ます。
+8. iPhoneでも同じメールアドレスとパスワードでログインします。
 
-## GitHub Pages
-index.html / style.css / app.js を同じ場所にアップロードしてください。
-既存のV3ファイルをV4の3ファイルで上書きします。
+## セキュリティ
+ブラウザにはSupabase Publishable keyだけを設定してください。`secret` / `service_role` keyは絶対に `config.js` に入れないでください。テーブルはRLSでユーザー自身の行だけを読書きできるようにしています。
+
+## 注意
+Supabase Freeは低活動が7日間続くプロジェクトを自動停止することがあります。停止した場合はSupabase DashboardからResumeできます。Freeでは自動バックアップが含まれないため、アプリの「バックアップ保存」も利用してください。
