@@ -4,6 +4,6 @@
 // 3) Paste them below.
 // IMPORTANT: Never put a Supabase secret/service_role key here.
 window.KEIBA_CONFIG = {
-  supabaseUrl: "YOUR_SUPABASE_URL",
-  supabaseKey: "YOUR_SUPABASE_PUBLISHABLE_KEY"
+  supabaseUrl: "https://cppcdfirzelyanaiigrj.supabase.co",
+  supabaseKey: "sb_publishable_zSMnbMhpTFHjluTMVPOaGw_KbpDfna1"
 };
