@@ -93,32 +93,64 @@ async function fetchText(url,kind="text"){
   const res=await fetch(url,{cache:"no-store",headers:{"Accept":kind==="html"?"text/html,text/plain":"text/plain"}});
   if(!res.ok)throw Error(`HTTP ${res.status}`);return await res.text();
 }
+async function applyScheduleRaces(races,date,sourceLabel){
+  const filtered=(races||[]).filter(x=>x.date===date);
+  if(!filtered.length)return false;
+  window.KEIBA_SCHEDULE=filtered;
+  const courses=[...new Map(filtered.map(r=>[r.course,{course:r.course,meeting:r.meeting}])).values()];
+  setScheduleCourseOptions(courses);
+  $("scheduleStatus").textContent=`${courses.length}場を表示（${sourceLabel}）`;
+  $("raceStatus").textContent="競馬場を選ぶとレース名を自動表示します。";
+  return true;
+}
+async function loadBundledSchedule(date){
+  try{
+    const res=await fetch(`data/jra-schedule.json?v=${encodeURIComponent(date)}`,{cache:"no-store"});
+    if(!res.ok)throw Error(`HTTP ${res.status}`);
+    const json=await res.json();
+    return await applyScheduleRaces(json.races||[],date,"JRA番組データ");
+  }catch(e){return false}
+}
+async function fetchTextWithTimeout(url,kind="text",ms=3500){
+  const ctrl=new AbortController(),timer=setTimeout(()=>ctrl.abort(),ms);
+  try{
+    const res=await fetch(url,{cache:"no-store",signal:ctrl.signal,headers:{"Accept":kind==="html"?"text/html,text/plain":"text/plain"}});
+    if(!res.ok)throw Error(`HTTP ${res.status}`);return await res.text();
+  }finally{clearTimeout(timer)}
+}
 async function loadJraSchedule(date){
   if(!date)return;
-  $("scheduleStatus").textContent="JRAの開催番組を確認中…";$('scheduleStatus').className="scheduleStatus muted";resetRaceSelect();window.KEIBA_SCHEDULE=[];
-  const target=jraDayUrl(date);const encoded=encodeURIComponent(target);
+  $("scheduleStatus").textContent="開催情報を確認中…";$('scheduleStatus').className="scheduleStatus muted";resetRaceSelect();window.KEIBA_SCHEDULE=[];
+  // First priority: repository-hosted JSON. This is instant and avoids browser CORS/proxy delays.
+  if(await loadBundledSchedule(date))return;
+  // Online fallback only when the local schedule has not been updated yet. Run proxies in parallel and time out quickly.
+  const target=jraDayUrl(date),encoded=encodeURIComponent(target);
   const candidates=[
     {name:"Jina",url:`https://r.jina.ai/${target}`},
     {name:"AllOrigins",url:`https://api.allorigins.win/raw?url=${encoded}`},
-    {name:"CorsProxy",url:`https://corsproxy.io/?url=${encoded}`},
-    {name:"CodeTabs",url:`https://api.codetabs.com/v1/proxy?quest=${encoded}`}
+    {name:"CorsProxy",url:`https://corsproxy.io/?url=${encoded}`}
   ];
-  let lastErr=null;
-  for(const c of candidates){
+  const jobs=candidates.map(async c=>{
     try{
-      const raw=await fetchText(c.url,c.name==="Jina"?"text":"html");
+      const raw=await fetchTextWithTimeout(c.url,c.name==="Jina"?"text":"html",3500);
       const races=c.name==="Jina"?parseScheduleText(raw,date):parseScheduleHtml(raw,date);
-      if(races.length>=1){
-        window.KEIBA_SCHEDULE=races;const courses=[...new Map(races.map(r=>[r.course,{course:r.course,meeting:r.meeting}])).values()];setScheduleCourseOptions(courses);
-        $("scheduleStatus").textContent=`${courses.length}場を取得しました（無料・JRA番組ベース）`;$('raceStatus').textContent="競馬場を選ぶとレース名を自動表示します。";return;
-      }
-      lastErr=Error(`${c.name}: データを解析できませんでした`);
-    }catch(e){lastErr=e}
-  }
+      if(races.length)return {races,name:c.name};
+    }catch(e){}
+    return null;
+  });
+  const deadline=new Promise(resolve=>setTimeout(()=>resolve(null),3800));
+  const winner=await Promise.race([Promise.any(jobs),deadline]).catch(()=>null);
+  if(winner&&winner.races&&await applyScheduleRaces(winner.races,date,`無料オンライン取得・${winner.name}`))return;
   const fallback=embeddedFallbackSchedule(date);
-  if(fallback.length){window.KEIBA_SCHEDULE=fallback;const courses=[...new Map(fallback.map(r=>[r.course,{course:r.course,meeting:r.meeting}])).values()];setScheduleCourseOptions(courses);$("scheduleStatus").textContent="本日の開催情報を表示しています（無料取得が一時利用できないため予備データを使用）";$('raceStatus').textContent="競馬場を選ぶとレース名を表示します。";return;}
-  console.warn("JRA schedule lookup failed",lastErr);$("scheduleStatus").innerHTML=`自動取得できませんでした。<a href="${escapeHtml(target)}" target="_blank" rel="noopener">JRA公式番組を開く</a>`;setScheduleCourseOptions([]);$("course").innerHTML='<option value="">自動取得失敗</option>';$("course").disabled=true;$("raceStatus").textContent="通信できない場合はJRA公式番組で確認してください。";
+  if(fallback.length&&await applyScheduleRaces(fallback,date,"予備データ")){
+    $("scheduleStatus").textContent="予備データを表示中（自動更新待ち）";return;
+  }
+  console.warn("JRA schedule lookup failed",date);
+  $("scheduleStatus").innerHTML=`データ未取得。<a href="${escapeHtml(target)}" target="_blank" rel="noopener">JRA公式番組を開く</a>`;
+  setScheduleCourseOptions([]);$("course").innerHTML='<option value="">自動取得データなし</option>';$('course').disabled=true;
+  $("raceStatus").textContent="GitHubのJRA番組データ更新後は自動表示されます。";
 }
+
 $("date").addEventListener("change",()=>loadJraSchedule($("date").value));$("course").addEventListener("change",()=>{const c=$("course").value;const races=window.KEIBA_SCHEDULE.filter(x=>x.course===c);setRaceOptions(races);$("raceStatus").textContent=races.length?`${races.length}レースを自動取得しました。`:"レース情報がありません。"});$("race").addEventListener("change",()=>{const r=window.KEIBA_SCHEDULE.find(x=>x.course===$("course").value&&String(x.race)===$("race").value);window.KEIBA_SELECTED_RACE=r||null;showRaceMeta(r)});
 
 function makeBetRow(r={}){const wrap=document.createElement("div");wrap.className="betRow";wrap.innerHTML=`<div class="betRowHead"><b>馬券</b><button type="button" class="removeBetRow">削除</button></div><div class="betRowGrid"><label>馬券種<select class="bet-type"><option>複勝</option><option>ワイド</option><option>単勝</option><option>馬連</option><option>馬単</option><option>三連複</option><option>三連単</option><option>その他</option></select></label><label>馬番<input class="bet-horses" inputmode="text" placeholder="例：8 / 5-8 / 1-3-7"></label><label>購入金額<input class="bet-inv" type="number" min="0" step="100" required></label><label>払戻金額<input class="bet-ret" type="number" min="0" step="10" required></label><label class="full">メモ<input class="bet-memo" maxlength="100" placeholder="例：複勝500円"></label></div>`;wrap.querySelector(".bet-type").value=r.type||"複勝";wrap.querySelector(".bet-horses").value=r.horses||"";wrap.querySelector(".bet-inv").value=r.inv??"";wrap.querySelector(".bet-ret").value=r.ret??"";wrap.querySelector(".bet-memo").value=r.memo||"";wrap.querySelector(".removeBetRow").onclick=()=>{if($("betRows").children.length>1)wrap.remove()};$("betRows").appendChild(wrap)}
