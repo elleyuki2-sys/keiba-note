@@ -48,12 +48,11 @@ $("importData").onclick=()=>$("fileInput").click();$("fileInput").onchange=async
 
 $('savePrediction').onclick=savePrediction;$('clearPredictionForm').onclick=clearPredictionForm;$('openAiPaste').onclick=()=>{$('aiPasteModal').classList.remove('hide')};$('closeAiPaste').onclick=()=>{$('aiPasteModal').classList.add('hide')};$('aiPasteModal').onclick=e=>{if(e.target.id==='aiPasteModal')$('aiPasteModal').classList.add('hide')};$('importAiPaste').onclick=parseAiPaste;
 $('predictionList').onclick=async e=>{const b=e.target.closest('button');if(!b)return;const id=b.dataset.setresult||b.dataset.editpred||b.dataset.delpred;if(b.dataset.setresult)setPredictionResult(id);else if(b.dataset.editpred){const p=predictions.find(x=>x.id===id);if(p)fillPrediction(p)}else if(b.dataset.delpred&&confirm('このAI予想を削除しますか？')){predictions=predictions.filter(x=>x.id!==id);savePredictions();renderAi();await deletePredictionCloud(id)}};
-clearPredictionForm();renderAi();
-render();initCloud();
-
-
 const PKEY="keiba-note-predictions-v1";
 let predictions=loadPredictions();
+
+clearPredictionForm();renderAi();
+render();initCloud();
 function loadPredictions(){try{const a=JSON.parse(localStorage.getItem(PKEY)||"[]");return Array.isArray(a)?a.map(normalizePrediction):[]}catch(e){return []}}
 function normalizePrediction(p,i){return{id:p&&p.id!=null?String(p.id):"p"+Date.now()+i,date:p?.date||"",course:p?.course||"その他",race:toNumber(p?.race),main:String(p?.main||""),second:String(p?.second||""),third:String(p?.third||""),fukusho:String(p?.fukusho||""),wide:String(p?.wide||""),confidence:Math.max(0,Math.min(100,toNumber(p?.confidence))),comment:String(p?.comment||""),result:String(p?.result||""),fukushoHit:p?.fukushoHit===true,wideHit:p?.wideHit===true,resultEntered:!!p?.resultEntered}}
 function savePredictions(){localStorage.setItem(PKEY,JSON.stringify(predictions))}
