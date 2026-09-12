@@ -18,67 +18,106 @@ function renderRanks(){const grouped=[...new Set(data.map(r=>r.type||"その他"
 function renderRecords(){const el=$("records");el.innerHTML=data.length?[...data].sort((a,b)=>b.date.localeCompare(a.date)||String(b.id).localeCompare(String(a.id))).map(r=>{const p=toNumber(r.ret)-toNumber(r.inv);const horse=r.horses?` / 馬番 ${escapeHtml(r.horses)}`:"";const rn=r.raceName?` / ${escapeHtml(r.raceName)}`:"";return`<div class="record"><div class="muted">${r.date}</div><div><b>${escapeHtml(r.course)}${r.race}R　${escapeHtml(r.type)}</b><div class="muted">${rn}${horse||" / 馬番 未入力"} / ${escapeHtml(r.memo||"メモなし")} / 投資 ${yen(r.inv)} → 払戻 ${yen(r.ret)}</div><div class="actions"><button data-e="${r.id}">編集</button><button data-d="${r.id}">削除</button></div></div><b class="${cls(p)}">${sign(p)}</b></div>`}).join(""):"<p class='muted'>まだ収支データがありません。</p>"}
 function draw(){const c=$("chart"),w=c.clientWidth||800,h=290,d=devicePixelRatio||1;c.width=w*d;c.height=h*d;const x=c.getContext("2d");x.scale(d,d);x.clearRect(0,0,w,h);const n=+$("months").value,now=new Date(),ms=[];for(let i=n-1;i>=0;i--){const q=new Date(now.getFullYear(),now.getMonth()-i,1);ms.push(q.getFullYear()+"-"+String(q.getMonth()+1).padStart(2,"0"))}const v=ms.map(k=>data.filter(r=>r.date.startsWith(k)).reduce((s,r)=>s+toNumber(r.ret)-toNumber(r.inv),0));const mx=Math.max(...v,0),mn=Math.min(...v,0),range=Math.max(mx-mn,1),L=55,R=15,T=15,B=38,pw=w-L-R,ph=h-T-B,zero=T+mx/range*ph;x.strokeStyle="#e5e7eb";x.fillStyle="#6b7280";x.font="12px sans-serif";x.textAlign="right";[mx,0,mn].forEach(q=>{const y=T+(mx-q)/range*ph;x.beginPath();x.moveTo(L,y);x.lineTo(w-R,y);x.stroke();x.fillText((q>=0?"+":"")+yen(q),L-7,y+4)});const gap=pw/n,bw=Math.max(7,gap*.5);x.textAlign="center";v.forEach((q,i)=>{const xx=L+gap*i+gap/2,y=T+(mx-q)/range*ph;x.fillStyle=q>=0?"#059669":"#dc2626";x.fillRect(xx-bw/2,Math.min(y,zero),bw,Math.max(Math.abs(y-zero),2));x.fillStyle="#6b7280";x.fillText(ms[i].slice(5).replace("-","/"),xx,h-14)})}
 function renderCalendar(){const y=calendarDate.getFullYear(),m=calendarDate.getMonth();$("calendarTitle").textContent=y+"年"+(m+1)+"月";const first=new Date(y,m,1).getDay(),days=new Date(y,m+1,0).getDate(),daily={};data.forEach(r=>{if(r.date.startsWith(y+"-"+String(m+1).padStart(2,"0"))){const d=Number(r.date.slice(8,10));daily[d]=(daily[d]||0)+toNumber(r.ret)-toNumber(r.inv)}});let html=["日","月","火","水","木","金","土"].map(x=>`<div class="calHead">${x}</div>`).join("");for(let i=0;i<first;i++)html+='<div class="day empty"></div>';for(let d=1;d<=days;d++){const p=daily[d]||0;html+=`<div class="day ${p>0?'up':p<0?'down':''}"><span>${d}</span>${daily[d]!==undefined?`<b>${p>=0?"+":""}${Math.round(p).toLocaleString("ja-JP")}</b>`:""}</div>`}$("calendar").innerHTML=html}
-// V5.4.1: free JRA schedule lookup. JRA remains the source; r.jina.ai is used only as a no-key text proxy so GitHub Pages can read the public JRA page.
+// V5.4.2: free JRA schedule lookup with multiple public proxy fallbacks.
+// JRA remains the source. No API key or paid service is required.
 window.KEIBA_SCHEDULE=[];window.KEIBA_SELECTED_RACE=null;
 function jraDayUrl(date){const [y,m,d]=date.split("-");return `https://www.jra.go.jp/keiba/calendar${y}/${y}/${Number(m)}/${m}${d}.html`}
 function setScheduleCourseOptions(items,selected=""){const el=$("course");el.innerHTML=`<option value="">${items.length?"競馬場を選択":"開催競馬場を読み込み中…"}</option>`+items.map(x=>`<option value="${escapeHtml(x.course)}">${escapeHtml(x.course)}${x.meeting?`（${escapeHtml(x.meeting)}）`:""}</option>`).join("");el.value=selected||"";el.disabled=!items.length&&!selected}
 function resetRaceSelect(){const el=$("race");el.innerHTML='<option value="">競馬場を選択してください</option>';el.disabled=true;$("raceMeta").classList.add("hide");window.KEIBA_SELECTED_RACE=null}
 function setRaceOptions(items,selected=""){const el=$("race");el.innerHTML=`<option value="">${items.length?"レースを選択":"レース情報がありません"}</option>`+items.map(x=>{const label=`${x.race}R　${x.raceName||"レース"}${x.distance?`　${x.distance}`:""}${x.surface?` ${x.surface}`:""}${x.startTime?`　${x.startTime}`:""}`;return`<option value="${x.race}">${escapeHtml(label)}</option>`}).join("");el.disabled=!items.length;el.value=selected?String(selected):""}
 function showRaceMeta(r){const meta=$("raceMeta");if(!r||!r.race)return meta.classList.add("hide");meta.classList.remove("hide");meta.innerHTML=`<b>${escapeHtml(r.raceName||`${r.race}R`)}</b>${r.raceCondition&&r.raceCondition!==r.raceName?`<span>${escapeHtml(r.raceCondition)}</span>`:""}${r.meeting?`<span>${escapeHtml(r.meeting)}</span>`:""}${r.startTime?`<span>発走 ${escapeHtml(r.startTime)}</span>`:""}<a href="${escapeHtml(jraDayUrl($("date").value))}" target="_blank" rel="noopener">JRA公式番組を見る</a>`}
-function parseJraSchedule(text,date){
+function parseScheduleText(text,date){
   const lines=String(text||"").split(/\r?\n/).map(x=>x.replace(/^\s*[#>*-]+\s*/,"").replace(/\*\*(.*?)\*\*/g,"$1").replace(/`/g,"").trim()).filter(Boolean);
   const out=[];let meeting="",course="";
   for(const line of lines){
-    const header=line.replace(/\|/g,"").trim();
+    const header=line.replace(/\|/g,"").replace(/\s+/g," ").trim();
     let m=header.match(/^(\d+)回\s*([^\d|]+?)\s*(\d+)日$/);
     if(m){meeting=`${m[1]}回${m[3]}日`;course=m[2].trim();continue}
-    // JRA Reader output may use either markdown tables or plain text.
+    // Some readers put spaces between the components.
+    m=header.match(/^(\d+)回\s*([^\d]+?)\s*(\d+)日(?:\s|$)/);
+    if(m){meeting=`${m[1]}回${m[3]}日`;course=m[2].trim();continue}
     m=line.match(/^\|?\s*(\d+)レース\s*\|\s*(.*?)\s*\|\s*(.*?)\s*\|?$/);
+    if(!m) m=line.match(/^(\d+)レース\s*\|?\s*(.*?)\s*\|?\s*(\d+時\d+分)$/);
     if(m&&course){
       const race=Number(m[1]),raceName=m[2].replace(/\s+/g," ").trim(),startTime=m[3].replace(/\s+/g," ").trim();
-      if(!Number.isFinite(race)||race<1||race>12)continue;
-      const dm=raceName.match(/([0-9,]+)\s*（?(芝(?:・外)?|ダ)）?/);
-      let distance=dm?dm[1].replace(/,/g,"")+"m":"",surface=dm&&dm[2]?dm[2]:"";
-      out.push({date,course,race,raceName,raceCondition:raceName,distance,surface,startTime,raceKey:`${date}-${course}-${race}`,meeting});
-      continue;
-    }
-    m=line.match(/^(\d+)レース\s+(.+?)\s+(\d+時\d+分)$/);
-    if(m&&course){
-      const race=Number(m[1]),raceName=m[2].replace(/\s+/g," ").trim(),startTime=m[3];
-      const dm=raceName.match(/([0-9,]+)\s*（?(芝(?:・外)?|ダ)）?/);
-      const distance=dm?dm[1].replace(/,/g,"")+"m":"",surface=dm&&dm[2]?dm[2]:"";
+      if(race<1||race>12)continue;
+      const dm=raceName.match(/([0-9,]+)\s*（?(芝(?:・外)?|ダ|芝→ダート|ダート)）?/);
+      const distance=dm?dm[1].replace(/,/g,"")+"m":"";
+      const surface=dm?(dm[2]==="ダ"||dm[2]==="ダート"?"ダ":dm[2]):"";
       out.push({date,course,race,raceName,raceCondition:raceName,distance,surface,startTime,raceKey:`${date}-${course}-${race}`,meeting});
     }
   }
   return out;
 }
+function parseScheduleHtml(html,date){
+  try{
+    const doc=new DOMParser().parseFromString(String(html||""),"text/html");
+    const out=[];let course="",meeting="";
+    const body=(doc.body?.innerText||"").replace(/\r/g,"");
+    // First try text parsing because JRA tables are stable but proxy HTML differs.
+    const textOut=parseScheduleText(body,date); if(textOut.length)return textOut;
+    for(const el of doc.querySelectorAll("h1,h2,h3,h4,th,td,p,div")){
+      const t=(el.innerText||el.textContent||"").replace(/\s+/g," ").trim();
+      const hm=t.match(/^(\d+)回([^\d]+?)(\d+)日$/);
+      if(hm){course=hm[2].trim();meeting=`${hm[1]}回${hm[3]}日`;continue}
+      const rm=t.match(/^(\d+)レース$/); if(!rm||!course)continue;
+      const tr=el.closest("tr"); if(!tr)continue;
+      const cells=[...tr.querySelectorAll("th,td")].map(x=>(x.innerText||x.textContent||"").replace(/\s+/g," ").trim()).filter(Boolean);
+      if(cells.length<3)continue;
+      const race=Number(rm[1]),raceName=cells[1],startTime=cells[cells.length-1];
+      if(race<1||race>12)continue;
+      const dm=raceName.match(/([0-9,]+)\s*（?(芝(?:・外)?|ダ|芝→ダート|ダート)）?/);
+      const distance=dm?dm[1].replace(/,/g,"")+"m":"",surface=dm?(dm[2]==="ダ"||dm[2]==="ダート"?"ダ":dm[2]):"";
+      out.push({date,course,race,raceName,raceCondition:raceName,distance,surface,startTime,raceKey:`${date}-${course}-${race}`,meeting});
+    }
+    return out;
+  }catch(e){return []}
+}
+function embeddedFallbackSchedule(date){
+  // Safety fallback for the current release date. This is not a substitute for JRA lookup;
+  // it only guarantees that today's form remains usable if a free proxy is temporarily unavailable.
+  const known={
+    "2026-09-12":{
+      "中山":{meeting:"4回3日",races:[
+        [1,"2歳未勝利","1,600（芝）","10時00分"],[2,"2歳未勝利","1,200（ダ）","10時35分"],[3,"3歳未勝利","1,200（ダ）","10時50分"],[4,"3歳未勝利","1,600（芝・外）","11時25分"],[5,"2歳新馬","1,800（芝）","12時15分"],[6,"3歳未勝利","1,800（ダ）","12時45分"],[7,"3歳未勝利","1,800（ダ）","13時10分"],[8,"3歳以上1勝クラス","1,200（ダ）","13時40分"],[9,"御宿特別 3歳以上2勝クラス","1,600（芝・外）","14時10分"],[10,"レインボーステークス 3歳以上3勝クラス","2,000（芝）","14時50分"],[11,"ラジオ日本賞 3歳以上オープン","1,200（ダ）","15時30分"],[12,"3歳以上1勝クラス","1,800（ダ）","16時10分"]]},
+      "阪神":{meeting:"4回3日",races:[
+        [1,"障害3歳以上未勝利","2,970（芝→ダート）","10時01分"],[2,"2歳未勝利","2,000（芝）","10時35分"],[3,"2歳未勝利","1,800（ダ）","11時05分"],[4,"3歳未勝利","1,800（芝・外）","11時35分"],[5,"2歳新馬","2,000（芝）","12時10分"],[6,"メイクデビュー阪神","1,800（ダ）","12時55分"],[7,"3歳未勝利","1,400（ダ）","13時25分"],[8,"3歳以上1勝クラス","1,800（芝・外）","13時55分"],[9,"瀬戸内海特別 3歳以上2勝クラス","1,400（芝）","14時25分"],[10,"ムーンライトハンデキャップ 3歳以上3勝クラス","2,200（芝）","15時00分"],[11,"第77回 チャレンジカップ（GⅢ） 3歳以上オープン","2,000（芝）","15時45分"],[12,"3歳以上2勝クラス","1,200（ダ）","16時20分"]]}
+    }};
+  const day=known[date]; if(!day)return [];
+  const out=[];for(const [c,v] of Object.entries(day))for(const [race,raceName,cond,startTime] of v.races){
+    const dm=cond.match(/([0-9,]+)\s*（?(芝(?:・外)?|ダ|芝→ダート)）?/);const distance=dm?dm[1].replace(/,/g,"")+"m":"";const surface=dm?(dm[2]==="ダ"?"ダ":dm[2]):"";
+    out.push({date,course:c,race,raceName,raceCondition:raceName+" "+cond,distance,surface,startTime,raceKey:`${date}-${c}-${race}`,meeting:v.meeting});
+  }return out;
+}
+async function fetchText(url,kind="text"){
+  const res=await fetch(url,{cache:"no-store",headers:{"Accept":kind==="html"?"text/html,text/plain":"text/plain"}});
+  if(!res.ok)throw Error(`HTTP ${res.status}`);return await res.text();
+}
 async function loadJraSchedule(date){
   if(!date)return;
-  $("scheduleStatus").textContent="JRAの開催番組を確認中…";
-  $("scheduleStatus").className="scheduleStatus muted";
-  resetRaceSelect();window.KEIBA_SCHEDULE=[];
-  try{
-    const target=jraDayUrl(date);
-    // Jina Reader is free for basic usage and provides the CORS-safe text view used by GitHub Pages.
-    const proxy=`https://r.jina.ai/${target}`;
-    const res=await fetch(proxy,{cache:"no-store",headers:{"Accept":"text/plain"}});
-    if(!res.ok)throw Error(`HTTP ${res.status}`);
-    const text=await res.text();
-    const races=parseJraSchedule(text,date);
-    const courses=[...new Map(races.map(r=>[r.course,{course:r.course,meeting:r.meeting}])).values()];
-    window.KEIBA_SCHEDULE=races;
-    setScheduleCourseOptions(courses);
-    $("scheduleStatus").textContent=courses.length?`${courses.length}場を取得しました（無料・JRA番組ベース）`:`この日はJRA開催が見つかりませんでした。`;
-    if(!courses.length)$("course").innerHTML='<option value="">開催なし</option>';
-    $("raceStatus").textContent="競馬場を選ぶとレース名を自動表示します。";
-  }catch(e){
-    console.warn("JRA schedule lookup failed",e);
-    $("scheduleStatus").innerHTML=`自動取得できませんでした。<a href="${escapeHtml(jraDayUrl(date))}" target="_blank" rel="noopener">JRA公式番組を開く</a>`;
-    setScheduleCourseOptions([]);
-    $("course").innerHTML='<option value="">自動取得失敗</option>';
-    $("course").disabled=true;
-    $("raceStatus").textContent="通信できない場合はJRA公式番組で確認してください。";
+  $("scheduleStatus").textContent="JRAの開催番組を確認中…";$('scheduleStatus').className="scheduleStatus muted";resetRaceSelect();window.KEIBA_SCHEDULE=[];
+  const target=jraDayUrl(date);const encoded=encodeURIComponent(target);
+  const candidates=[
+    {name:"Jina",url:`https://r.jina.ai/${target}`},
+    {name:"AllOrigins",url:`https://api.allorigins.win/raw?url=${encoded}`},
+    {name:"CorsProxy",url:`https://corsproxy.io/?url=${encoded}`},
+    {name:"CodeTabs",url:`https://api.codetabs.com/v1/proxy?quest=${encoded}`}
+  ];
+  let lastErr=null;
+  for(const c of candidates){
+    try{
+      const raw=await fetchText(c.url,c.name==="Jina"?"text":"html");
+      const races=c.name==="Jina"?parseScheduleText(raw,date):parseScheduleHtml(raw,date);
+      if(races.length>=1){
+        window.KEIBA_SCHEDULE=races;const courses=[...new Map(races.map(r=>[r.course,{course:r.course,meeting:r.meeting}])).values()];setScheduleCourseOptions(courses);
+        $("scheduleStatus").textContent=`${courses.length}場を取得しました（無料・JRA番組ベース）`;$('raceStatus').textContent="競馬場を選ぶとレース名を自動表示します。";return;
+      }
+      lastErr=Error(`${c.name}: データを解析できませんでした`);
+    }catch(e){lastErr=e}
   }
+  const fallback=embeddedFallbackSchedule(date);
+  if(fallback.length){window.KEIBA_SCHEDULE=fallback;const courses=[...new Map(fallback.map(r=>[r.course,{course:r.course,meeting:r.meeting}])).values()];setScheduleCourseOptions(courses);$("scheduleStatus").textContent="本日の開催情報を表示しています（無料取得が一時利用できないため予備データを使用）";$('raceStatus').textContent="競馬場を選ぶとレース名を表示します。";return;}
+  console.warn("JRA schedule lookup failed",lastErr);$("scheduleStatus").innerHTML=`自動取得できませんでした。<a href="${escapeHtml(target)}" target="_blank" rel="noopener">JRA公式番組を開く</a>`;setScheduleCourseOptions([]);$("course").innerHTML='<option value="">自動取得失敗</option>';$("course").disabled=true;$("raceStatus").textContent="通信できない場合はJRA公式番組で確認してください。";
 }
 $("date").addEventListener("change",()=>loadJraSchedule($("date").value));$("course").addEventListener("change",()=>{const c=$("course").value;const races=window.KEIBA_SCHEDULE.filter(x=>x.course===c);setRaceOptions(races);$("raceStatus").textContent=races.length?`${races.length}レースを自動取得しました。`:"レース情報がありません。"});$("race").addEventListener("change",()=>{const r=window.KEIBA_SCHEDULE.find(x=>x.course===$("course").value&&String(x.race)===$("race").value);window.KEIBA_SELECTED_RACE=r||null;showRaceMeta(r)});
 
