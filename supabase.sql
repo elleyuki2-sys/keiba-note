@@ -8,12 +8,16 @@ create table if not exists public.keiba_records (
   course text not null default 'その他',
   race integer not null default 0,
   type text not null default 'その他',
+  horses text not null default '',
   inv numeric not null default 0,
   ret numeric not null default 0,
   memo text not null default '',
   updated_at timestamptz not null default now(),
   primary key (user_id, id)
 );
+
+-- V5.3.1 migration: horse numbers for bet analysis
+alter table public.keiba_records add column if not exists horses text not null default '';
 
 alter table public.keiba_records enable row level security;
 

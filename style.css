@@ -27,3 +27,24 @@
 
 /* V5.2 AI prediction */
 .aiPanel{border:1px solid #ddd6fe;background:#fcfaff}.aiStats{display:grid;grid-template-columns:repeat(4,1fr);gap:9px;margin-top:14px}.aiStat{background:white;border:1px solid #e5e7eb;border-radius:10px;padding:10px}.aiStat span{display:block;color:#6b7280;font-size:11px}.aiStat b{display:block;font-size:18px;margin-top:3px}.aiForm{display:grid;grid-template-columns:repeat(5,1fr);gap:9px;margin-top:14px}.aiForm label{font-size:12px}.aiForm textarea{display:block;width:100%;margin-top:5px;border:1px solid #d1d5db;border-radius:9px;padding:9px;font:inherit;resize:vertical}.aiForm .full{grid-column:1/-1}.aiFormActions{display:flex;gap:8px;margin-top:10px}.prediction{border:1px solid #e5e7eb;border-radius:11px;padding:12px;margin-top:9px;background:white}.predictionTop{display:flex;justify-content:space-between;align-items:center;gap:8px}.predictionBadges{display:flex;gap:5px;flex-wrap:wrap;margin-top:7px}.badge{display:inline-block;padding:4px 7px;border-radius:999px;background:#f3f4f6;font-size:11px;font-weight:700}.badge.main{background:#fef3c7}.badge.hit{background:#d1fae5}.badge.miss{background:#fee2e2}.predictionComment{margin:8px 0 0;color:#4b5563;font-size:12px;line-height:1.5}.predictionActions{display:flex;gap:6px;margin-top:9px;flex-wrap:wrap}.predictionActions button{padding:6px 8px;font-size:11px;background:#f3f4f6}.resultBox{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-top:9px;padding-top:9px;border-top:1px dashed #e5e7eb}.resultBox label{font-size:11px}.resultBox input{padding:7px}.aiPasteBox textarea{width:100%;margin:12px 0;border:1px solid #d1d5db;border-radius:9px;padding:10px;font:inherit}.aiPasteBox small{display:block;line-height:1.5}.aiPasteBox .save{margin-top:12px}.aiPanel .head button{white-space:nowrap}@media(max-width:800px){.aiForm{grid-template-columns:repeat(3,1fr)}.aiStats{grid-template-columns:repeat(2,1fr)}}@media(max-width:600px){.aiPanel{padding:14px}.aiPanel .head{align-items:flex-start}.aiPanel .head h2{font-size:17px}.aiForm{grid-template-columns:1fr 1fr}.aiForm .full{grid-column:1/-1}.aiStats{grid-template-columns:repeat(2,1fr)}.aiFormActions button{flex:1;padding:9px 8px;font-size:12px}.predictionTop{align-items:flex-start}.predictionActions button{flex:1}.resultBox{grid-template-columns:1fr 1fr}}
+
+/* V5.3.1: compact AI details */
+.aiHeadActions{display:flex;align-items:center;gap:7px;flex-wrap:wrap}.aiDetails{margin-top:4px}.aiDetails.hide{display:none}
+
+/* V5.3.1: multi-bet entry */
+.raceBaseForm{grid-template-columns:repeat(3,1fr)}.betsEntryHead{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:18px}.betsEntryHead h3{margin:0;font-size:16px}.betsEntryHead button{background:#f3f4f6;padding:8px 11px;font-size:12px}.betRows{display:flex;flex-direction:column;gap:10px;margin-top:10px}.betRow{border:1px solid #dbeafe;background:#f8fbff;border-radius:12px;padding:12px}.betRowHead{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}.betRowHead b{font-size:13px}.removeBetRow{background:#fee2e2;color:#991b1b;padding:5px 8px;font-size:11px}.betRowGrid{display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:9px}.betRowGrid label{font-size:12px}.betRowGrid .full{grid-column:1/-1}.betRowGrid input,.betRowGrid select{font-size:14px}
+
+/* V5.3.1: jump menu / side drawer */
+.menuToggle{position:fixed;left:16px;bottom:16px;z-index:1000;background:#111827;color:white;box-shadow:0 8px 24px #0003;padding:10px 13px}.sideMenu{position:fixed;left:0;top:0;bottom:0;width:290px;max-width:86vw;background:white;z-index:1002;box-shadow:8px 0 30px #0003;transform:translateX(-105%);transition:transform .2s ease;padding:18px}.sideMenu.open{transform:translateX(0)}.sideMenuHead{display:flex;justify-content:space-between;align-items:center;font-size:18px;padding-bottom:12px;border-bottom:1px solid #e5e7eb}.sideMenuHead button{background:#f3f4f6;padding:5px 10px}.sideMenu nav{display:flex;flex-direction:column;gap:4px;margin-top:10px}.sideMenu nav a{padding:11px 10px;border-radius:9px;color:#111827;text-decoration:none;font-weight:700;font-size:14px}.sideMenu nav a:hover{background:#f3f4f6}.menuBackdrop{position:fixed;inset:0;background:#11182766;z-index:1001;display:none}.menuBackdrop.open{display:block}
+
+/* iPhone Safari: avoid input-focus auto zoom and layout enlargement after closing modal */
+@media(max-width:600px){
+  input,select,textarea{font-size:16px!important}
+  .betRowGrid{grid-template-columns:1fr 1fr}.betRowGrid .full{grid-column:1/-1}
+  .raceBaseForm{grid-template-columns:1fr 1fr}.raceBaseForm label:first-child{grid-column:1/-1}
+  .betModalBox{max-height:calc(100dvh - 24px);overflow:auto;padding:16px}
+  .menuToggle{left:auto;right:14px;bottom:14px;padding:9px 12px;font-size:12px}
+  .sideMenu{width:310px;max-width:88vw}
+  .aiHeadActions{justify-content:flex-end}.aiHeadActions button{padding:8px 9px;font-size:11px}
+  .aiDetails{margin-top:8px}
+}
