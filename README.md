@@ -1,19 +1,13 @@
-# KEIBA NOTE V5.1
+# KEIBA NOTE V5.2
 
-V4の収支管理機能を維持しながら、Supabase Freeを使ったPC・iPhoneクラウド同期、ログイン、V4データ移行、JSONバックアップ/復元を追加した版です。
+V5.1.3をベースにAI予想記録機能を追加。OpenAI APIは使用しないため、AI API料金は発生しません。
 
-## セットアップ
-1. SupabaseでFreeプロジェクトを作成。
-2. SQL Editorで `supabase.sql` を全量実行。
-3. Settings > API Keys から Project URL と Publishable key を確認。
-4. `config.js` の `YOUR_SUPABASE_URL` と `YOUR_SUPABASE_PUBLISHABLE_KEY` を置き換える。
-5. `index.html` / `app.js` / `style.css` / `config.js` をGitHub Pagesへアップロード。
-6. PCで新規登録またはログイン。
-7. 初回ログイン時にV4のlocalStorageデータがあれば、クラウドへ移行する確認が出ます。
-8. iPhoneでも同じメールアドレスとパスワードでログインします。
+## AI予想
+- ChatGPTで予想
+- 手動入力またはKEIBA_NOTE形式のコピペ登録
+- 本命/対抗/単穴/複勝/ワイド/信頼度/コメントを保存
+- 実着順を入力すると複勝・ワイドの的中を自動判定
+- AI予想の件数・平均信頼度・的中率を表示
 
-## セキュリティ
-ブラウザにはSupabase Publishable keyだけを設定してください。`secret` / `service_role` keyは絶対に `config.js` に入れないでください。テーブルはRLSでユーザー自身の行だけを読書きできるようにしています。
-
-## 注意
-Supabase Freeは低活動が7日間続くプロジェクトを自動停止することがあります。停止した場合はSupabase DashboardからResumeできます。Freeでは自動バックアップが含まれないため、アプリの「バックアップ保存」も利用してください。
+## Supabase
+supabase.sqlをSQL Editorで実行してください。既存V5.1のテーブルは維持されます。
