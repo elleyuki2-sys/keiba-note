@@ -49,6 +49,6 @@
   .aiDetails{margin-top:8px}
 }
 
-/* V5.4: JRA schedule / race metadata */
+/* V5.4.1: JRA schedule / race metadata */
 .raceBaseForm label{position:relative}.scheduleStatus{display:block;font-size:11px;line-height:1.4;margin-top:5px}.scheduleStatus a{font-weight:700}.raceMeta{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:10px 0 0;padding:10px 12px;background:#f8fafc;border:1px solid #e5e7eb;border-radius:10px;font-size:12px}.raceMeta b{font-size:13px}.raceMeta span{color:#4b5563}.raceMeta a{margin-left:auto;font-weight:700;text-decoration:none}.raceMeta.hide{display:none}
 @media(max-width:600px){.raceBaseForm{grid-template-columns:1fr}.raceBaseForm label:first-child{grid-column:auto}.raceMeta a{width:100%;margin-left:0}}

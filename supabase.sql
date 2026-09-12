@@ -19,7 +19,7 @@ create table if not exists public.keiba_records (
 -- V5.3.1 migration: horse numbers for bet analysis
 alter table public.keiba_records add column if not exists horses text not null default '';
 
--- V5.4 migration: JRA race metadata for analysis
+-- V5.4.1 migration: JRA race metadata for analysis
 alter table public.keiba_records add column if not exists race_name text not null default '';
 alter table public.keiba_records add column if not exists race_condition text not null default '';
 alter table public.keiba_records add column if not exists distance text not null default '';
