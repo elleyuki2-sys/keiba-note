@@ -25,8 +25,61 @@ function setScheduleCourseOptions(items,selected=""){const el=$("course");el.inn
 function resetRaceSelect(){const el=$("race");el.innerHTML='<option value="">競馬場を選択してください</option>';el.disabled=true;$("raceMeta").classList.add("hide");window.KEIBA_SELECTED_RACE=null}
 function setRaceOptions(items,selected=""){const el=$("race");el.innerHTML=`<option value="">${items.length?"レースを選択":"レース情報がありません"}</option>`+items.map(x=>{const label=`${x.race}R　${x.raceName||"レース"}${x.distance?`　${x.distance}`:""}${x.surface?` ${x.surface}`:""}${x.startTime?`　${x.startTime}`:""}`;return`<option value="${x.race}">${escapeHtml(label)}</option>`}).join("");el.disabled=!items.length;el.value=selected?String(selected):""}
 function showRaceMeta(r){const meta=$("raceMeta");if(!r||!r.race)return meta.classList.add("hide");meta.classList.remove("hide");meta.innerHTML=`<b>${escapeHtml(r.raceName||`${r.race}R`)}</b>${r.raceCondition&&r.raceCondition!==r.raceName?`<span>${escapeHtml(r.raceCondition)}</span>`:""}${r.meeting?`<span>${escapeHtml(r.meeting)}</span>`:""}${r.startTime?`<span>発走 ${escapeHtml(r.startTime)}</span>`:""}<a href="${escapeHtml(jraDayUrl($("date").value))}" target="_blank" rel="noopener">JRA公式番組を見る</a>`}
-function parseJraSchedule(text,date){const lines=String(text||"").split(/\r?\n/).map(x=>x.replace(/^#+\s*/,"").replace(/^\*\*(.*?)\*\*$/,"$1").trim()).filter(Boolean);const out=[];let meeting="",course="";for(const line of lines){let m=line.match(/^(\d+)回([^\d|]+?)(\d+)日(?:\s*\|)?$/);if(m){meeting=`${m[1]}回${m[3]}日`;course=m[2].trim();continue}m=line.match(/^(?:\|\s*)?(\d+)レース\s*\|\s*(.*?)\s*\|\s*(.*?)\s*$/);if(m&&course){const race=Number(m[1]),raceName=m[2].replace(/\s+/g," ").trim(),startTime=m[3].replace(/\s+/g," ").trim();const dm=raceName.match(/([0-9,]+)\s*\((芝(?:・外)?|ダ)\)/);let distance=dm?dm[1].replace(/,/g,"")+"m":"",surface=dm?dm[2]:"";out.push({date,course,race,raceName,raceCondition:raceName,distance,surface,startTime,raceKey:`${date}-${course}-${race}`,meeting});}}return out}
-async function loadJraSchedule(date){if(!date)return;$("scheduleStatus").textContent="JRAの開催番組を確認中…";$("scheduleStatus").className="scheduleStatus muted";resetRaceSelect();window.KEIBA_SCHEDULE=[];try{const target=jraDayUrl(date);const proxy=`https://r.jina.ai/http://${target.replace(/^https?:\/\//,"")}`;const res=await fetch(proxy,{cache:"no-store"});if(!res.ok)throw Error(`HTTP ${res.status}`);const text=await res.text();const races=parseJraSchedule(text,date);const courses=[...new Map(races.map(r=>[r.course,{course:r.course,meeting:r.meeting}])).values()];window.KEIBA_SCHEDULE=races;setScheduleCourseOptions(courses);$("scheduleStatus").textContent=courses.length?`${courses.length}場を取得しました（無料・JRA番組ベース）`:`この日はJRA開催が見つかりませんでした。`;if(!courses.length)$("course").innerHTML='<option value="">開催なし</option>';$("raceStatus").textContent="競馬場を選ぶとレース名を自動表示します。"}catch(e){console.warn("JRA schedule lookup failed",e);$("scheduleStatus").innerHTML=`自動取得できませんでした。<a href="${escapeHtml(jraDayUrl(date))}" target="_blank" rel="noopener">JRA公式番組を開く</a>`;setScheduleCourseOptions([]);$("course").innerHTML='<option value="">自動取得失敗（手動入力は不可）</option>';$("course").disabled=true;$("raceStatus").textContent="通信できない場合はJRA公式番組で確認してください。"}}
+function parseJraSchedule(text,date){
+  const lines=String(text||"").split(/\r?\n/).map(x=>x.replace(/^\s*[#>*-]+\s*/,"").replace(/\*\*(.*?)\*\*/g,"$1").replace(/`/g,"").trim()).filter(Boolean);
+  const out=[];let meeting="",course="";
+  for(const line of lines){
+    const header=line.replace(/\|/g,"").trim();
+    let m=header.match(/^(\d+)回\s*([^\d|]+?)\s*(\d+)日$/);
+    if(m){meeting=`${m[1]}回${m[3]}日`;course=m[2].trim();continue}
+    // JRA Reader output may use either markdown tables or plain text.
+    m=line.match(/^\|?\s*(\d+)レース\s*\|\s*(.*?)\s*\|\s*(.*?)\s*\|?$/);
+    if(m&&course){
+      const race=Number(m[1]),raceName=m[2].replace(/\s+/g," ").trim(),startTime=m[3].replace(/\s+/g," ").trim();
+      if(!Number.isFinite(race)||race<1||race>12)continue;
+      const dm=raceName.match(/([0-9,]+)\s*（?(芝(?:・外)?|ダ)）?/);
+      let distance=dm?dm[1].replace(/,/g,"")+"m":"",surface=dm&&dm[2]?dm[2]:"";
+      out.push({date,course,race,raceName,raceCondition:raceName,distance,surface,startTime,raceKey:`${date}-${course}-${race}`,meeting});
+      continue;
+    }
+    m=line.match(/^(\d+)レース\s+(.+?)\s+(\d+時\d+分)$/);
+    if(m&&course){
+      const race=Number(m[1]),raceName=m[2].replace(/\s+/g," ").trim(),startTime=m[3];
+      const dm=raceName.match(/([0-9,]+)\s*（?(芝(?:・外)?|ダ)）?/);
+      const distance=dm?dm[1].replace(/,/g,"")+"m":"",surface=dm&&dm[2]?dm[2]:"";
+      out.push({date,course,race,raceName,raceCondition:raceName,distance,surface,startTime,raceKey:`${date}-${course}-${race}`,meeting});
+    }
+  }
+  return out;
+}
+async function loadJraSchedule(date){
+  if(!date)return;
+  $("scheduleStatus").textContent="JRAの開催番組を確認中…";
+  $("scheduleStatus").className="scheduleStatus muted";
+  resetRaceSelect();window.KEIBA_SCHEDULE=[];
+  try{
+    const target=jraDayUrl(date);
+    // Jina Reader is free for basic usage and provides the CORS-safe text view used by GitHub Pages.
+    const proxy=`https://r.jina.ai/${target}`;
+    const res=await fetch(proxy,{cache:"no-store",headers:{"Accept":"text/plain"}});
+    if(!res.ok)throw Error(`HTTP ${res.status}`);
+    const text=await res.text();
+    const races=parseJraSchedule(text,date);
+    const courses=[...new Map(races.map(r=>[r.course,{course:r.course,meeting:r.meeting}])).values()];
+    window.KEIBA_SCHEDULE=races;
+    setScheduleCourseOptions(courses);
+    $("scheduleStatus").textContent=courses.length?`${courses.length}場を取得しました（無料・JRA番組ベース）`:`この日はJRA開催が見つかりませんでした。`;
+    if(!courses.length)$("course").innerHTML='<option value="">開催なし</option>';
+    $("raceStatus").textContent="競馬場を選ぶとレース名を自動表示します。";
+  }catch(e){
+    console.warn("JRA schedule lookup failed",e);
+    $("scheduleStatus").innerHTML=`自動取得できませんでした。<a href="${escapeHtml(jraDayUrl(date))}" target="_blank" rel="noopener">JRA公式番組を開く</a>`;
+    setScheduleCourseOptions([]);
+    $("course").innerHTML='<option value="">自動取得失敗</option>';
+    $("course").disabled=true;
+    $("raceStatus").textContent="通信できない場合はJRA公式番組で確認してください。";
+  }
+}
 $("date").addEventListener("change",()=>loadJraSchedule($("date").value));$("course").addEventListener("change",()=>{const c=$("course").value;const races=window.KEIBA_SCHEDULE.filter(x=>x.course===c);setRaceOptions(races);$("raceStatus").textContent=races.length?`${races.length}レースを自動取得しました。`:"レース情報がありません。"});$("race").addEventListener("change",()=>{const r=window.KEIBA_SCHEDULE.find(x=>x.course===$("course").value&&String(x.race)===$("race").value);window.KEIBA_SELECTED_RACE=r||null;showRaceMeta(r)});
 
 function makeBetRow(r={}){const wrap=document.createElement("div");wrap.className="betRow";wrap.innerHTML=`<div class="betRowHead"><b>馬券</b><button type="button" class="removeBetRow">削除</button></div><div class="betRowGrid"><label>馬券種<select class="bet-type"><option>複勝</option><option>ワイド</option><option>単勝</option><option>馬連</option><option>馬単</option><option>三連複</option><option>三連単</option><option>その他</option></select></label><label>馬番<input class="bet-horses" inputmode="text" placeholder="例：8 / 5-8 / 1-3-7"></label><label>購入金額<input class="bet-inv" type="number" min="0" step="100" required></label><label>払戻金額<input class="bet-ret" type="number" min="0" step="10" required></label><label class="full">メモ<input class="bet-memo" maxlength="100" placeholder="例：複勝500円"></label></div>`;wrap.querySelector(".bet-type").value=r.type||"複勝";wrap.querySelector(".bet-horses").value=r.horses||"";wrap.querySelector(".bet-inv").value=r.inv??"";wrap.querySelector(".bet-ret").value=r.ret??"";wrap.querySelector(".bet-memo").value=r.memo||"";wrap.querySelector(".removeBetRow").onclick=()=>{if($("betRows").children.length>1)wrap.remove()};$("betRows").appendChild(wrap)}
