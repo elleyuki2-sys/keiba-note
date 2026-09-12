@@ -18,7 +18,7 @@ function renderRanks(){const grouped=[...new Set(data.map(r=>r.type||"その他"
 function renderRecords(){const el=$("records");el.innerHTML=data.length?[...data].sort((a,b)=>b.date.localeCompare(a.date)||String(b.id).localeCompare(String(a.id))).map(r=>{const p=toNumber(r.ret)-toNumber(r.inv);const horse=r.horses?` / 馬番 ${escapeHtml(r.horses)}`:"";const rn=r.raceName?` / ${escapeHtml(r.raceName)}`:"";return`<div class="record"><div class="muted">${r.date}</div><div><b>${escapeHtml(r.course)}${r.race}R　${escapeHtml(r.type)}</b><div class="muted">${rn}${horse||" / 馬番 未入力"} / ${escapeHtml(r.memo||"メモなし")} / 投資 ${yen(r.inv)} → 払戻 ${yen(r.ret)}</div><div class="actions"><button data-e="${r.id}">編集</button><button data-d="${r.id}">削除</button></div></div><b class="${cls(p)}">${sign(p)}</b></div>`}).join(""):"<p class='muted'>まだ収支データがありません。</p>"}
 function draw(){const c=$("chart"),w=c.clientWidth||800,h=290,d=devicePixelRatio||1;c.width=w*d;c.height=h*d;const x=c.getContext("2d");x.scale(d,d);x.clearRect(0,0,w,h);const n=+$("months").value,now=new Date(),ms=[];for(let i=n-1;i>=0;i--){const q=new Date(now.getFullYear(),now.getMonth()-i,1);ms.push(q.getFullYear()+"-"+String(q.getMonth()+1).padStart(2,"0"))}const v=ms.map(k=>data.filter(r=>r.date.startsWith(k)).reduce((s,r)=>s+toNumber(r.ret)-toNumber(r.inv),0));const mx=Math.max(...v,0),mn=Math.min(...v,0),range=Math.max(mx-mn,1),L=55,R=15,T=15,B=38,pw=w-L-R,ph=h-T-B,zero=T+mx/range*ph;x.strokeStyle="#e5e7eb";x.fillStyle="#6b7280";x.font="12px sans-serif";x.textAlign="right";[mx,0,mn].forEach(q=>{const y=T+(mx-q)/range*ph;x.beginPath();x.moveTo(L,y);x.lineTo(w-R,y);x.stroke();x.fillText((q>=0?"+":"")+yen(q),L-7,y+4)});const gap=pw/n,bw=Math.max(7,gap*.5);x.textAlign="center";v.forEach((q,i)=>{const xx=L+gap*i+gap/2,y=T+(mx-q)/range*ph;x.fillStyle=q>=0?"#059669":"#dc2626";x.fillRect(xx-bw/2,Math.min(y,zero),bw,Math.max(Math.abs(y-zero),2));x.fillStyle="#6b7280";x.fillText(ms[i].slice(5).replace("-","/"),xx,h-14)})}
 function renderCalendar(){const y=calendarDate.getFullYear(),m=calendarDate.getMonth();$("calendarTitle").textContent=y+"年"+(m+1)+"月";const first=new Date(y,m,1).getDay(),days=new Date(y,m+1,0).getDate(),daily={};data.forEach(r=>{if(r.date.startsWith(y+"-"+String(m+1).padStart(2,"0"))){const d=Number(r.date.slice(8,10));daily[d]=(daily[d]||0)+toNumber(r.ret)-toNumber(r.inv)}});let html=["日","月","火","水","木","金","土"].map(x=>`<div class="calHead">${x}</div>`).join("");for(let i=0;i<first;i++)html+='<div class="day empty"></div>';for(let d=1;d<=days;d++){const p=daily[d]||0;html+=`<div class="day ${p>0?'up':p<0?'down':''}"><span>${d}</span>${daily[d]!==undefined?`<b>${p>=0?"+":""}${Math.round(p).toLocaleString("ja-JP")}</b>`:""}</div>`}$("calendar").innerHTML=html}
-// V5.4.2: free JRA schedule lookup with multiple public proxy fallbacks.
+// V5.4.4: repository-hosted JRA schedule first, with fast online fallback.
 // JRA remains the source. No API key or paid service is required.
 window.KEIBA_SCHEDULE=[];window.KEIBA_SELECTED_RACE=null;
 function jraDayUrl(date){const [y,m,d]=date.split("-");return `https://www.jra.go.jp/keiba/calendar${y}/${y}/${Number(m)}/${m}${d}.html`}
@@ -105,11 +105,12 @@ async function applyScheduleRaces(races,date,sourceLabel){
 }
 async function loadBundledSchedule(date){
   try{
-    const res=await fetch(`data/jra-schedule.json?v=${encodeURIComponent(date)}`,{cache:"no-store"});
+    const url=new URL("./data/jra-schedule.json",document.baseURI);url.searchParams.set("v",date);
+    const res=await fetch(url.href,{cache:"no-store"});
     if(!res.ok)throw Error(`HTTP ${res.status}`);
     const json=await res.json();
-    return await applyScheduleRaces(json.races||[],date,"JRA番組データ");
-  }catch(e){return false}
+    return await applyScheduleRaces(Array.isArray(json.races)?json.races:[],date,"GitHub保存データ");
+  }catch(e){console.warn("Bundled JRA schedule unavailable",e);return false}
 }
 async function fetchTextWithTimeout(url,kind="text",ms=3500){
   const ctrl=new AbortController(),timer=setTimeout(()=>ctrl.abort(),ms);
@@ -120,35 +121,17 @@ async function fetchTextWithTimeout(url,kind="text",ms=3500){
 }
 async function loadJraSchedule(date){
   if(!date)return;
-  $("scheduleStatus").textContent="開催情報を確認中…";$('scheduleStatus').className="scheduleStatus muted";resetRaceSelect();window.KEIBA_SCHEDULE=[];
-  // First priority: repository-hosted JSON. This is instant and avoids browser CORS/proxy delays.
+  $("scheduleStatus").textContent="開催情報を確認中…";$("scheduleStatus").className="scheduleStatus muted";
+  resetRaceSelect();window.KEIBA_SCHEDULE=[];
   if(await loadBundledSchedule(date))return;
-  // Online fallback only when the local schedule has not been updated yet. Run proxies in parallel and time out quickly.
   const target=jraDayUrl(date),encoded=encodeURIComponent(target);
-  const candidates=[
-    {name:"Jina",url:`https://r.jina.ai/${target}`},
-    {name:"AllOrigins",url:`https://api.allorigins.win/raw?url=${encoded}`},
-    {name:"CorsProxy",url:`https://corsproxy.io/?url=${encoded}`}
-  ];
-  const jobs=candidates.map(async c=>{
-    try{
-      const raw=await fetchTextWithTimeout(c.url,c.name==="Jina"?"text":"html",3500);
-      const races=c.name==="Jina"?parseScheduleText(raw,date):parseScheduleHtml(raw,date);
-      if(races.length)return {races,name:c.name};
-    }catch(e){}
-    return null;
-  });
-  const deadline=new Promise(resolve=>setTimeout(()=>resolve(null),3800));
-  const winner=await Promise.race([Promise.any(jobs),deadline]).catch(()=>null);
-  if(winner&&winner.races&&await applyScheduleRaces(winner.races,date,`無料オンライン取得・${winner.name}`))return;
-  const fallback=embeddedFallbackSchedule(date);
-  if(fallback.length&&await applyScheduleRaces(fallback,date,"予備データ")){
-    $("scheduleStatus").textContent="予備データを表示中（自動更新待ち）";return;
-  }
-  console.warn("JRA schedule lookup failed",date);
-  $("scheduleStatus").innerHTML=`データ未取得。<a href="${escapeHtml(target)}" target="_blank" rel="noopener">JRA公式番組を開く</a>`;
-  setScheduleCourseOptions([]);$("course").innerHTML='<option value="">自動取得データなし</option>';$('course').disabled=true;
-  $("raceStatus").textContent="GitHubのJRA番組データ更新後は自動表示されます。";
+  const candidates=[{name:"Jina",url:`https://r.jina.ai/${target}`,kind:"text"},{name:"AllOrigins",url:`https://api.allorigins.win/raw?url=${encoded}`,kind:"html"},{name:"CorsProxy",url:`https://corsproxy.io/?url=${encoded}`,kind:"html"}];
+  const jobs=candidates.map(async c=>{try{const raw=await fetchTextWithTimeout(c.url,c.kind,2500);const races=c.name==="Jina"?parseScheduleText(raw,date):parseScheduleHtml(raw,date);if(races.length)return {races,name:c.name}}catch(e){}return null});
+  const winner=await Promise.race([Promise.any(jobs),new Promise(r=>setTimeout(()=>r(null),2800))]).catch(()=>null);
+  if(winner?.races?.length&&await applyScheduleRaces(winner.races,date,`無料オンライン・${winner.name}`))return;
+  const fallback=embeddedFallbackSchedule(date);if(fallback.length&&await applyScheduleRaces(fallback,date,"予備データ")){ $("scheduleStatus").textContent="予備データを表示中（GitHub自動更新待ち）";return; }
+  $("scheduleStatus").textContent="JRA番組データを取得できませんでした";$('course').innerHTML='<option value="">自動取得データなし</option>';$('course').disabled=true;
+  $("raceStatus").textContent="GitHub Actionsの自動更新が成功すると、次回から高速表示されます。";
 }
 
 $("date").addEventListener("change",()=>loadJraSchedule($("date").value));$("course").addEventListener("change",()=>{const c=$("course").value;const races=window.KEIBA_SCHEDULE.filter(x=>x.course===c);setRaceOptions(races);$("raceStatus").textContent=races.length?`${races.length}レースを自動取得しました。`:"レース情報がありません。"});$("race").addEventListener("change",()=>{const r=window.KEIBA_SCHEDULE.find(x=>x.course===$("course").value&&String(x.race)===$("race").value);window.KEIBA_SELECTED_RACE=r||null;showRaceMeta(r)});

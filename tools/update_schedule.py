@@ -1,87 +1,50 @@
-import json, re, sys, time
-from datetime import date, timedelta
-from urllib.request import Request, urlopen
+import json,re,sys,time
+from datetime import date,timedelta
+from urllib.request import Request,urlopen
 from html import unescape
-
-COURSES = r"札幌|函館|福島|新潟|東京|中山|中京|京都|阪神|小倉"
-
-def fetch(url):
-    req=Request(url, headers={"User-Agent":"Mozilla/5.0 KEIBA-NOTE schedule updater"})
-    with urlopen(req, timeout=20) as r:
-        return r.read().decode("utf-8", errors="replace")
-
+from pathlib import Path
+COURSES=r"札幌|函館|福島|新潟|東京|中山|中京|京都|阪神|小倉"
+HEADING=re.compile(rf"^(\d+)回\s*({COURSES})\s*(\d+)日$")
+def fetch(url,timeout=30):
+ req=Request(url,headers={"User-Agent":"Mozilla/5.0 (compatible; KEIBA-NOTE/5.4.4)"})
+ with urlopen(req,timeout=timeout) as r:return r.read().decode("utf-8","replace")
+def norm(s):
+ s=unescape(str(s)).replace("\xa0"," ").replace("\u3000"," ");s=re.sub(r"\*\*(.*?)\*\*",r"\1",s).replace("`","");return re.sub(r"\s+"," ",s).strip()
+def parse_text(text,ds):
+ lines=[norm(x) for x in str(text).splitlines() if norm(x)];out=[];course="";meeting=""
+ for line in lines:
+  clean=line.strip().strip("|").strip();h=HEADING.match(clean)
+  if h:course=h.group(2);meeting=f"{h.group(1)}回{h.group(3)}日";continue
+  m=re.match(r"^\|?\s*(\d+)レース\s*\|\s*(.*?)\s*\|\s*(\d+)時(\d+)分\s*\|?\s*$",line) or re.match(r"^(\d+)レース\s*\|\s*(.*?)\s*\|\s*(\d+)時(\d+)分\s*$",clean)
+  if not m or not course:continue
+  race=int(m.group(1));
+  if not 1<=race<=12:continue
+  cond=re.sub(r"\s+"," ",m.group(2)).strip();dm=re.search(r"([0-9,]+)\s*（(芝(?:・外)?|ダ|芝→ダート|ダート)）",cond)
+  distance=(dm.group(1).replace(",","")+"m") if dm else "";surface=dm.group(2) if dm else "";surface="ダ" if surface=="ダート" else surface
+  name=re.sub(r"\s+[0-9,]+\s*（.*","",cond).strip() or cond
+  out.append({"date":ds,"course":course,"race":race,"raceName":name,"raceCondition":cond,"distance":distance,"surface":surface,"startTime":f"{int(m.group(3)):02d}:{int(m.group(4)):02d}","raceKey":f"{ds}-{course}-{race}","meeting":meeting})
+ seen=set();return [r for r in out if not ((r["date"],r["course"],r["race"]) in seen or seen.add((r["date"],r["course"],r["race"]))) ]
 def strip_html(html):
-    # Good enough for JRA's table text and avoids external dependencies.
-    html=re.sub(r'<script[\s\S]*?</script>', ' ', html, flags=re.I)
-    html=re.sub(r'<style[\s\S]*?</style>', ' ', html, flags=re.I)
-    html=re.sub(r'<br\s*/?>', '\n', html, flags=re.I)
-    html=re.sub(r'</(?:p|div|tr|li|h[1-6]|table)>', '\n', html, flags=re.I)
-    html=re.sub(r'<(?:td|th)\b[^>]*>', '\n', html, flags=re.I)
-    text=re.sub(r'<[^>]+>', ' ', html)
-    text=unescape(text).replace('\xa0',' ')
-    return [re.sub(r'\s+',' ',x).strip() for x in text.splitlines() if re.sub(r'\s+',' ',x).strip()]
-
-def parse(html, ds):
-    lines=strip_html(html)
-    out=[]
-    heading=re.compile(rf'^(\d+)回\s*({COURSES})\s*(\d+)日$')
-    race=re.compile(r'^(\d+)レース$')
-    current=None
-    for i,line in enumerate(lines):
-        m=heading.match(line)
-        if m:
-            current=(m.group(2), f"{m.group(1)}回{m.group(3)}日")
-            continue
-        if not current:
-            continue
-        rm=race.match(line)
-        if not rm or i+2>=len(lines):
-            continue
-        try:rno=int(rm.group(1))
-        except:continue
-        if not 1<=rno<=12:continue
-        name=lines[i+1]
-        tm=lines[i+2]
-        if not re.match(r'^\d+時\d+分$',tm):
-            # Search a few cells ahead in case the parser inserted an extra note.
-            for j in range(i+2,min(i+6,len(lines))):
-                if re.match(r'^\d+時\d+分$',lines[j]):
-                    tm=lines[j];break
-            else:continue
-        dm=re.search(r'([0-9,]+)\s*（?(芝(?:・外)?|ダ|芝→ダート|ダート)）?',name)
-        distance=(dm.group(1).replace(',','')+'m') if dm else ''
-        surface=dm.group(2) if dm else ''
-        if surface=='ダート':surface='ダ'
-        out.append({
-            'date':ds,'course':current[0],'race':rno,'raceName':name,
-            'raceCondition':name,'distance':distance,'surface':surface,
-            'startTime':tm.replace('時',':').replace('分',''),
-            'raceKey':f'{ds}-{current[0]}-{rno}','meeting':current[1]
-        })
-    # de-duplicate while preserving order
-    seen=set(); clean=[]
-    for r in out:
-        k=(r['date'],r['course'],r['race'])
-        if k not in seen:seen.add(k);clean.append(r)
-    return clean
-
+ html=re.sub(r'<script[\s\S]*?</script>',' ',html,flags=re.I);html=re.sub(r'<style[\s\S]*?</style>',' ',html,flags=re.I);html=re.sub(r'<br\s*/?>','\n',html,flags=re.I);html=re.sub(r'</(?:p|div|tr|li|h[1-6]|table)>','\n',html,flags=re.I);html=re.sub(r'<(?:td|th)\b[^>]*>','\n',html,flags=re.I);text=re.sub(r'<[^>]+>',' ',html);return '\n'.join(norm(x) for x in text.splitlines() if norm(x))
+def fetch_date(ds):
+ d=date.fromisoformat(ds);target=f"https://www.jra.go.jp/keiba/calendar{d.year}/{d.year}/{d.month}/{d.month:02d}{d.day:02d}.html"
+ for url,jina in [(f"https://r.jina.ai/{target}",True),(target,False)]:
+  try:
+   raw=fetch(url);r=parse_text(raw,ds) if jina else parse_text(strip_html(raw),ds)
+   if r:return r
+  except Exception as e:print(f"WARN {ds}: {e}",file=sys.stderr)
+ return []
 def main():
-    today=date.today()
-    # Keep a rolling window. Future program pages are already published by JRA,
-    # while recent days remain useful for analysis.
-    dates=[today+timedelta(days=i) for i in range(-7,31)]
-    allr=[]; ok=[]
-    for d in dates:
-        ds=d.isoformat(); url=f'https://www.jra.go.jp/keiba/calendar{d.year}/{d.year}/{d.month}/{d.month:02d}{d.day:02d}.html'
-        try:
-            races=parse(fetch(url),ds)
-            if races:
-                allr.extend(races);ok.append(ds)
-        except Exception as e:
-            print(f'WARN {ds}: {e}',file=sys.stderr)
-    path='data/jra-schedule.json'
-    payload={'updatedAt':time.strftime('%Y-%m-%dT%H:%M:%SZ',time.gmtime()),'source':'JRA official daily program via GitHub Actions','dates':ok,'races':allr}
-    with open(path,'w',encoding='utf-8') as f:json.dump(payload,f,ensure_ascii=False,indent=2)
-    print(f'updated {len(allr)} races for {len(ok)} dates')
-
-if __name__=='__main__':main()
+ today=date.today();path=Path("data/jra-schedule.json")
+ try:old=json.loads(path.read_text(encoding="utf-8"))
+ except:old={"races":[]}
+ existing={(r.get("date"),r.get("course"),int(r.get("race",0))):r for r in old.get("races",[]) if isinstance(r,dict)};fetched=0
+ for i in range(-3,15):
+  ds=(today+timedelta(days=i)).isoformat();races=fetch_date(ds)
+  if races:
+   fetched+=len(races)
+   for r in races:existing[(r["date"],r["course"],r["race"])]=r
+ if not fetched:raise SystemExit("ERROR: 0 JRA races fetched; existing JSON was not overwritten.")
+ races=sorted(existing.values(),key=lambda r:(r.get("date",""),r.get("course",""),int(r.get("race",0))))
+ payload={"updatedAt":time.strftime("%Y-%m-%dT%H:%M:%SZ",time.gmtime()),"source":"JRA official daily program via GitHub Actions/Jina Reader","dates":sorted({r["date"] for r in races}),"races":races};path.write_text(json.dumps(payload,ensure_ascii=False,indent=2),encoding="utf-8");print(f"OK: fetched {fetched} races; stored {len(races)} races")
+if __name__=="__main__":main()
