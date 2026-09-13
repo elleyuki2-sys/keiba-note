@@ -11,18 +11,17 @@ RACE_MARK=re.compile(r"^\s*(?:\|\s*)?(\d{1,2})\s*レース\b")
 TIME_RE=re.compile(r"(\d{1,2})\s*時\s*(\d{1,2})\s*分")
 DIST_RE=re.compile(r"([0-9,]+)\s*[（(]\s*(芝(?:・外)?|ダ|芝→ダート|ダート)\s*[）)]")
 
-def fetch(url, timeout=30, jina=False):
-    headers={
-        "User-Agent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/153 Safari/537.36 (KEIBA-NOTE/5.4.7)",
-        "Accept":"text/plain,text/markdown,text/html;q=0.9,*/*;q=0.8",
-        "Accept-Language":"ja,en-US;q=0.8,en;q=0.6",
-        "Cache-Control":"no-cache",
-    }
-    if jina:
-        headers.update({"x-no-cache":"true","x-engine":"browser"})
-    req=Request(url,headers=headers)
-    with urlopen(req,timeout=timeout) as r:
-        return r.read().decode("utf-8","replace")
+def fetch(url,timeout=30):
+ req=Request(url,headers={
+     "User-Agent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/153.0.0.0 Safari/537.36",
+     "Accept":"text/html,application/xhtml+xml,application/xml;q=0.9,text/markdown;q=0.8,*/*;q=0.7",
+     "Accept-Language":"ja,en-US;q=0.9,en;q=0.8",
+     "Referer":"https://www.jra.go.jp/",
+     "Cache-Control":"no-cache",
+ })
+ with urlopen(req,timeout=timeout) as r:
+  return r.read().decode("utf-8","replace")
+
 
 def norm(s):
     s=unescape(str(s)).replace("\xa0"," ").replace("\u3000"," ")
@@ -155,31 +154,86 @@ def diagnose_jina_response(ds, raw, limit=8000):
         print(f"... [truncated; total chars={len(str(raw))}]")
     print(f"===== JINA RESPONSE END {ds} =====")
 
+def is_forbidden(text):
+ s=norm(text)[:12000].lower()
+ return ("403" in s and "forbidden" in s) or "title: forbidden" in s
+
+def parse_table_rows(text,ds):
+    """Parse JRA table rows in HTML, Markdown, or flattened text."""
+    s=str(text)
+    # Normalize HTML table cells into pipe-delimited rows.
+    s=re.sub(r'</(?:td|th)\s*>', '|', s, flags=re.I)
+    s=re.sub(r'<tr\b[^>]*>', '\n', s, flags=re.I)
+    s=re.sub(r'</tr\s*>', '\n', s, flags=re.I)
+    s=re.sub(r'<br\s*/?>', ' ', s, flags=re.I)
+    s=re.sub(r'<[^>]+>', ' ', s)
+    s=unescape(s).replace('\r','\n')
+    lines=[norm(x) for x in s.splitlines() if norm(x)]
+    out=[]
+    course=""
+    meeting=""
+    for line in lines:
+        clean=line.strip().strip("|").strip()
+        h=HEADING.match(clean)
+        if h:
+            course=h.group(2)
+            meeting=f"{h.group(1)}回{h.group(3)}日"
+            continue
+        # JRA table row: race | condition | time
+        m=re.search(r'(?<!\d)(\d{1,2})\s*レース\s*\|\s*(.*?)\s*\|\s*(\d{1,2})時\s*(\d{1,2})分', clean)
+        if not m:
+            m=re.search(r'^\|?\s*(\d{1,2})\s*\|\s*(.*?)\s*\|\s*(\d{1,2})時\s*(\d{1,2})分\s*\|?$', clean)
+        if not m or not course:
+            continue
+        race=int(m.group(1))
+        if not 1<=race<=12:
+            continue
+        cond=norm(m.group(2))
+        dm=re.search(r'([0-9,]+)\s*（\s*(芝(?:・外)?|ダ|芝→ダート|ダート)\s*）',cond)
+        if not dm:
+            dm=re.search(r'([0-9,]+)\s*(?:m)?\s*[（(]\s*(芝(?:・外)?|ダ|芝→ダート|ダート)\s*[）)]',cond)
+        distance=(dm.group(1).replace(",","")+"m") if dm else ""
+        surface=dm.group(2) if dm else ""
+        if surface=="ダート":
+            surface="ダ"
+        name=re.sub(r'\s+[0-9,]+\s*（.*','',cond).strip()
+        name=re.sub(r'\s+[0-9,]+\s*[（(].*','',name).strip() or cond
+        out.append({
+            "date":ds,"course":course,"race":race,
+            "raceName":name,"raceCondition":cond,
+            "distance":distance,"surface":surface,
+            "startTime":f"{int(m.group(3)):02d}:{int(m.group(4)):02d}",
+            "raceKey":f"{ds}-{course}-{race}","meeting":meeting
+        })
+    seen=set()
+    return [r for r in out if not ((r["date"],r["course"],r["race"]) in seen or seen.add((r["date"],r["course"],r["race"])))]
+
 def fetch_date(ds):
     d=date.fromisoformat(ds)
     target=f"https://www.jra.go.jp/keiba/calendar{d.year}/{d.year}/{d.month}/{d.month:02d}{d.day:02d}.html"
-    jina_url=f"https://r.jina.ai/{target}"
-    # Diagnostic build: inspect the first Jina response that returns HTTP content
-    # but produces zero parsed races. Do not spam logs for every date.
-    diagnostic_shown=False
-    for url,jina in [(jina_url,True),(target,False)]:
+    sources=[
+        ("JRA",target),
+        ("Jina",f"https://r.jina.ai/{target}")
+    ]
+    for source,url in sources:
         try:
             raw=fetch(url)
-            if jina:
-                r=parse_text(raw,ds)
-                if r:
-                    return r
-                print(f"WARN {ds}: Jina returned content but parser found 0 races")
-                if not diagnostic_shown:
-                    diagnose_jina_response(ds, raw)
-                    diagnostic_shown=True
-            else:
-                r=parse_text(strip_html(raw),ds)
-                if r:
-                    return r
-                print(f"WARN {ds}: JRA returned content but parser found 0 races")
+            if is_forbidden(raw):
+                print(f"WARN {ds}: {source} returned 403/Forbidden; skipping")
+                continue
+            # Try direct parsing first.
+            races=parse_table_rows(raw,ds)
+            if races:
+                print(f"OK {ds}: {source} parsed {len(races)} races")
+                return races
+            # HTML cleanup fallback.
+            cleaned=strip_html(raw)
+            races=parse_table_rows(cleaned,ds)
+            if races:
+                print(f"OK {ds}: {source} parsed {len(races)} races after HTML cleanup")
+                return races
+            print(f"WARN {ds}: {source} returned content but no race rows were detected")
         except Exception as e:
-            source="Jina" if jina else "JRA"
             print(f"WARN {ds}: {source} {e}",file=sys.stderr)
     return []
 
