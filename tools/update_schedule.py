@@ -7,13 +7,13 @@ from pathlib import Path
 
 COURSES=r"札幌|函館|福島|新潟|東京|中山|中京|京都|阪神|小倉"
 HEADING=re.compile(rf"^#+\s*(\d+)回\s*({COURSES})\s*(\d+)日\s*$")
-RACE_LINE=re.compile(r"^\s*\|?\s*(\d{1,2})\s*レース\s*\|\s*(.*?)\s*\|\s*(\d{1,2})時\s*(\d{1,2})分\s*\|?\s*$")
-RACE_LINE_ALT=re.compile(r"^\s*(\d{1,2})\s*レース\s*[|｜]\s*(.*?)\s*[|｜]\s*(\d{1,2})時\s*(\d{1,2})分\s*$")
-
+RACE_MARK=re.compile(r"^\s*(?:\|\s*)?(\d{1,2})\s*レース\b")
+TIME_RE=re.compile(r"(\d{1,2})\s*時\s*(\d{1,2})\s*分")
+DIST_RE=re.compile(r"([0-9,]+)\s*[（(]\s*(芝(?:・外)?|ダ|芝→ダート|ダート)\s*[）)]")
 
 def fetch(url, timeout=30, jina=False):
     headers={
-        "User-Agent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/153 Safari/537.36 (KEIBA-NOTE/5.4.5)",
+        "User-Agent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/153 Safari/537.36 (KEIBA-NOTE/5.4.6)",
         "Accept":"text/plain,text/markdown,text/html;q=0.9,*/*;q=0.8",
         "Accept-Language":"ja,en-US;q=0.8,en;q=0.6",
         "Cache-Control":"no-cache",
@@ -24,54 +24,96 @@ def fetch(url, timeout=30, jina=False):
     with urlopen(req,timeout=timeout) as r:
         return r.read().decode("utf-8","replace")
 
-
 def norm(s):
     s=unescape(str(s)).replace("\xa0"," ").replace("\u3000"," ")
-    s=re.sub(r"\*\*(.*?)\*\*",r"\1",s).replace("`","")
+    s=re.sub(r"\*\*(.*?)\*\*",r"\1",s)
+    s=re.sub(r"`","",s)
+    s=re.sub(r"\[(.*?)\]\([^)]*\)",r"\1",s)
     s=re.sub(r"\s+"," ",s).strip()
     return s
 
-
 def clean_line(line):
     line=norm(line).strip()
-    line=re.sub(r"^\s*[-*]\s*", "", line)
-    line=line.strip("|").strip()
-    return line
-
+    line=re.sub(r"^\s*[-*]\s*","",line)
+    return line.strip()
 
 def parse_text(text, ds):
-    lines=[norm(x) for x in str(text).splitlines() if norm(x)]
-    out=[]; course=""; meeting=""
-    for raw in lines:
-        line=clean_line(raw)
-        # Jina Reader commonly returns markdown headings such as "### 4回中山4日".
+    # Jina Reader can represent a table as:
+    #   1レース
+    #   レース名・条件
+    #   10時00分
+    # instead of a single Markdown table row.
+    # Therefore parse by race markers + nearby time rather than one exact row regex.
+    lines=[clean_line(x) for x in str(text).splitlines() if clean_line(x)]
+    out=[]
+    course=""
+    meeting=""
+
+    i=0
+    while i < len(lines):
+        line=lines[i]
         h=HEADING.match(line)
         if h:
             course=h.group(2)
             meeting=f"{h.group(1)}回{h.group(3)}日"
+            i += 1
             continue
 
-        # Ignore markdown table separator rows and unrelated text.
-        if re.fullmatch(r"[:\-\s|]+", line):
+        rm=RACE_MARK.match(line)
+        if not rm or not course:
+            i += 1
             continue
 
-        m=RACE_LINE.match(line) or RACE_LINE_ALT.match(line)
-        if not m or not course:
+        race=int(rm.group(1))
+        if not 1 <= race <= 12:
+            i += 1
             continue
 
-        race=int(m.group(1))
-        if not 1<=race<=12:
+        # Collect a small window after the race marker. This handles both
+        # one-line Markdown rows and multi-line Jina table extraction.
+        window=[]
+        j=i
+        for _ in range(12):
+            if j >= len(lines):
+                break
+            x=lines[j]
+            if j != i and HEADING.match(x):
+                break
+            if j != i and RACE_MARK.match(x):
+                break
+            window.append(x)
+            if TIME_RE.search(x):
+                break
+            j += 1
+
+        joined=" ".join(window)
+        tm=TIME_RE.search(joined)
+        if not tm:
+            i += 1
             continue
 
-        cond=re.sub(r"\s+"," ",m.group(2)).strip()
-        dm=re.search(r"([0-9,]+)\s*（\s*(芝(?:・外)?|ダ|芝→ダート|ダート)\s*）",cond)
-        if not dm:
-            # Be tolerant of normal parentheses or slightly different spacing.
-            dm=re.search(r"([0-9,]+)\s*[（(]\s*(芝(?:・外)?|ダ|芝→ダート|ダート)\s*[）)]",cond)
+        # Remove race number and time from the condition/name text.
+        cond=joined
+        cond=re.sub(r"^\s*\|?\s*\d{1,2}\s*レース\s*\|?\s*","",cond)
+        cond=re.sub(r"\|"," ",cond)
+        cond=re.sub(r"\s*"+re.escape(tm.group(0))+r".*$","",cond)
+        cond=re.sub(r"\s+"," ",cond).strip(" -|")
+
+        # Skip table headers accidentally matching around a race marker.
+        if not cond:
+            i=j+1
+            continue
+
+        dm=DIST_RE.search(cond)
         distance=(dm.group(1).replace(",","")+"m") if dm else ""
         surface=dm.group(2) if dm else ""
-        surface="ダ" if surface=="ダート" else surface
-        name=re.sub(r"\s+[0-9,]+\s*[（(].*", "", cond).strip() or cond
+        if surface=="ダート":
+            surface="ダ"
+
+        name=re.sub(r"\s*[0-9,]+\s*[（(].*$","",cond).strip()
+        if not name:
+            name=cond
+
         out.append({
             "date":ds,
             "course":course,
@@ -80,18 +122,20 @@ def parse_text(text, ds):
             "raceCondition":cond,
             "distance":distance,
             "surface":surface,
-            "startTime":f"{int(m.group(3)):02d}:{int(m.group(4)):02d}",
+            "startTime":f"{int(tm.group(1)):02d}:{int(tm.group(2)):02d}",
             "raceKey":f"{ds}-{course}-{race}",
             "meeting":meeting,
         })
+        i=max(i+1,j+1)
 
-    seen=set(); result=[]
+    seen=set()
+    result=[]
     for r in out:
         key=(r["date"],r["course"],r["race"])
         if key not in seen:
-            seen.add(key); result.append(r)
+            seen.add(key)
+            result.append(r)
     return result
-
 
 def strip_html(html):
     html=re.sub(r'<script[\s\S]*?</script>',' ',html,flags=re.I)
@@ -102,16 +146,12 @@ def strip_html(html):
     text=re.sub(r'<[^>]+>',' ',html)
     return '\n'.join(norm(x) for x in text.splitlines() if norm(x))
 
-
 def fetch_date(ds):
     d=date.fromisoformat(ds)
     target=f"https://www.jra.go.jp/keiba/calendar{d.year}/{d.year}/{d.month}/{d.month:02d}{d.day:02d}.html"
 
-    # Primary: Jina Reader. The V5.4.5 parser missed markdown headings,
-    # so V5.4.5 explicitly supports Jina's normal markdown output.
-    jina_url=f"https://r.jina.ai/{target}"
     try:
-        raw=fetch(jina_url,jina=True)
+        raw=fetch(f"https://r.jina.ai/{target}",jina=True)
         races=parse_text(raw,ds)
         if races:
             return races
@@ -119,8 +159,6 @@ def fetch_date(ds):
     except Exception as e:
         print(f"WARN {ds}: Jina fetch failed: {e}",file=sys.stderr)
 
-    # Secondary: direct JRA access. A 403 here is expected on some GitHub-hosted
-    # runner requests; it is logged and does not erase existing JSON.
     try:
         raw=fetch(target)
         races=parse_text(strip_html(raw),ds)
@@ -133,7 +171,6 @@ def fetch_date(ds):
         print(f"WARN {ds}: JRA fetch failed: {e}",file=sys.stderr)
     return []
 
-
 def main():
     today=date.today()
     path=Path("data/jra-schedule.json")
@@ -145,16 +182,20 @@ def main():
     existing={}
     for r in old.get("races",[]):
         if isinstance(r,dict):
-            try:key=(r.get("date"),r.get("course"),int(r.get("race",0)))
-            except Exception:continue
-            if key[0] and key[1] and key[2]: existing[key]=r
+            try:
+                key=(r.get("date"),r.get("course"),int(r.get("race",0)))
+            except Exception:
+                continue
+            if key[0] and key[1] and key[2]:
+                existing[key]=r
 
-    fetched=0; successful_dates=[]
+    fetched=0
+    successful_dates=[]
     for i in range(-3,15):
         ds=(today+timedelta(days=i)).isoformat()
         races=fetch_date(ds)
         if races:
-            fetched+=len(races)
+            fetched += len(races)
             successful_dates.append(ds)
             for r in races:
                 existing[(r["date"],r["course"],r["race"])]=r
@@ -171,7 +212,6 @@ def main():
     }
     path.write_text(json.dumps(payload,ensure_ascii=False,indent=2),encoding="utf-8")
     print(f"OK: fetched {fetched} races on {len(successful_dates)} date(s); stored {len(races)} races")
-
 
 if __name__=="__main__":
     main()
