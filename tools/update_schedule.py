@@ -259,11 +259,147 @@ def parse_jra_markdown(text, ds):
             result.append(r)
     return result
 
+
+def parse_html_tables(text, ds):
+    """Parse JRA HTML tables while preserving table-cell boundaries."""
+    from html.parser import HTMLParser
+
+    class P(HTMLParser):
+        def __init__(self):
+            super().__init__(convert_charrefs=True)
+            self.rows=[]; self.row=[]; self.cell=[]; self.in_cell=False
+        def handle_starttag(self, tag, attrs):
+            tag=tag.lower()
+            if tag=="tr":
+                self.row=[]
+            elif tag in ("td","th"):
+                self.in_cell=True; self.cell=[]
+            elif tag=="br" and self.in_cell:
+                self.cell.append(" ")
+        def handle_endtag(self, tag):
+            tag=tag.lower()
+            if tag in ("td","th") and self.in_cell:
+                self.row.append(norm("".join(self.cell)))
+                self.in_cell=False
+            elif tag=="tr" and self.row:
+                self.rows.append(self.row[:])
+        def handle_data(self, data):
+            if self.in_cell:
+                self.cell.append(data)
+
+    try:
+        p=P(); p.feed(str(text)); p.close()
+    except Exception:
+        return []
+
+    flat=strip_html(text)
+    headings=re.findall(
+        r'(\d{1,2})回\s*(札幌|函館|福島|新潟|東京|中山|中京|京都|阪神|小倉)\s*(\d{1,2})日',
+        flat
+    )
+    default_course=headings[0][1] if len(headings)==1 else ""
+    default_meeting=(f"{headings[0][0]}回{headings[0][2]}日" if len(headings)==1 else "")
+
+    out=[]
+    for row in p.rows:
+        joined=" | ".join(row)
+        rm=re.search(r'(?:第\s*)?(\d{1,2})\s*(?:R|Ｒ|レース)', joined, re.I)
+        tm=TIME_RE.search(joined)
+        if not rm or not tm:
+            continue
+        race=int(rm.group(1))
+        if not 1 <= race <= 12:
+            continue
+        hm=re.search(r'(\d{1,2})回\s*(札幌|函館|福島|新潟|東京|中山|中京|京都|阪神|小倉)\s*(\d{1,2})日', joined)
+        course=hm.group(2) if hm else default_course
+        meeting=(f"{hm.group(1)}回{hm.group(3)}日" if hm else default_meeting)
+        if not course:
+            continue
+
+        cells=[x for x in row if x and not re.search(r'(?:第\s*)?\d{1,2}\s*(?:R|Ｒ|レース)',x,re.I)]
+        cond=norm(" ".join(cells))
+        cond=re.sub(r'\d{1,2}\s*時\s*\d{1,2}\s*分.*$', '', cond).strip(" |")
+        dm=DIST_RE.search(cond)
+        distance=(dm.group(1).replace(",","")+"m") if dm else ""
+        surface=dm.group(2) if dm else ""
+        if surface=="ダート": surface="ダ"
+        name=cond[:dm.start()].strip() if dm else cond
+
+        out.append({
+            "date":ds,"course":course,"race":race,
+            "raceName":name,"raceCondition":cond,
+            "distance":distance,"surface":surface,
+            "startTime":f"{int(tm.group(1)):02d}:{int(tm.group(2)):02d}",
+            "raceKey":f"{ds}-{course}-{race}","meeting":meeting
+        })
+
+    seen=set(); result=[]
+    for r in out:
+        k=(r["date"],r["course"],r["race"])
+        if k not in seen:
+            seen.add(k); result.append(r)
+    return result
+
+def parse_flexible_text(text, ds):
+    """Parse flattened JRA text using 1R/１Ｒ/1レース markers."""
+    s=unescape(str(text)).replace("\r","\n").replace("\u3000"," ")
+    s=re.sub(r'<br\s*/?>','\n',s,flags=re.I)
+    s=re.sub(r'<[^>]+>',' ',s)
+    lines=[norm(x) for x in s.splitlines() if norm(x)]
+
+    headings=re.findall(
+        r'(\d{1,2})回\s*(札幌|函館|福島|新潟|東京|中山|中京|京都|阪神|小倉)\s*(\d{1,2})日',
+        "\n".join(lines)
+    )
+    course=headings[0][1] if len(headings)==1 else ""
+    meeting=(f"{headings[0][0]}回{headings[0][2]}日" if len(headings)==1 else "")
+    out=[]
+
+    for i,line in enumerate(lines):
+        rm=re.search(r'(?:第\s*)?(\d{1,2})\s*(?:R|Ｒ|レース)\b',line,re.I)
+        if not rm:
+            continue
+        race=int(rm.group(1))
+        if not 1 <= race <= 12:
+            continue
+        window=" ".join(lines[i:i+8])
+        tm=TIME_RE.search(window)
+        if not tm:
+            continue
+        cond=re.sub(r'^.*?(?:第\s*)?\d{1,2}\s*(?:R|Ｒ|レース)\b','',window,count=1,flags=re.I)
+        cond=re.sub(r'\d{1,2}\s*時\s*\d{1,2}\s*分.*$','',cond).strip(" |")
+        dm=DIST_RE.search(cond)
+        distance=(dm.group(1).replace(",","")+"m") if dm else ""
+        surface=dm.group(2) if dm else ""
+        if surface=="ダート": surface="ダ"
+        name=cond[:dm.start()].strip() if dm else cond
+        if course:
+            out.append({
+                "date":ds,"course":course,"race":race,
+                "raceName":name,"raceCondition":cond,
+                "distance":distance,"surface":surface,
+                "startTime":f"{int(tm.group(1)):02d}:{int(tm.group(2)):02d}",
+                "raceKey":f"{ds}-{course}-{race}","meeting":meeting
+            })
+
+    seen=set(); result=[]
+    for r in out:
+        k=(r["date"],r["course"],r["race"])
+        if k not in seen:
+            seen.add(k); result.append(r)
+    return result
+
 def parse_table_rows(text,ds):
-    races = parse_jra_markdown(text, ds)
-    if races:
-        return races
-    return parse_generic_table_rows(text, ds)
+    for parser in (
+        lambda x: parse_html_tables(x, ds),
+        lambda x: parse_jra_markdown(x, ds),
+        lambda x: parse_generic_table_rows(x, ds),
+        lambda x: parse_flexible_text(x, ds),
+    ):
+        races=parser(text)
+        if races:
+            return races
+    return []
 
 def parse_generic_table_rows(text,ds):
     """Parse JRA table rows in HTML, Markdown, or flattened text."""
@@ -336,6 +472,16 @@ def fetch_date(ds):
                 print(f"OK {ds}: {source} parsed {len(races)} races")
                 return races
             print(f"WARN {ds}: {source} returned content but no race rows were detected")
+            raw_s=str(raw)
+            clues=[]
+            for pat in (
+                r'[^\\n]{0,100}(?:1レース|1R|１Ｒ|レース番号)[^\\n]{0,180}',
+                r'[^\\n]{0,100}(?:10時|11時|12時|13時|14時|15時|16時)[^\\n]{0,180}',
+                r'[^\\n]{0,100}(?:中山|阪神|中京|東京|京都|新潟|福島|札幌|函館|小倉)[^\\n]{0,140}'
+            ):
+                clues.extend(re.findall(pat, raw_s, flags=re.I))
+            for clue in list(dict.fromkeys(clues))[:6]:
+                print(f"DEBUG {ds}: {norm(clue)[:280]}")
         except Exception as e:
             print(f"WARN {ds}: {source} {e}",file=sys.stderr)
     return []
