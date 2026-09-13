@@ -158,7 +158,114 @@ def is_forbidden(text):
  s=norm(text)[:12000].lower()
  return ("403" in s and "forbidden" in s) or "title: forbidden" in s
 
+def parse_jra_markdown(text, ds):
+    """Parse JRA's rendered Markdown table, including multi-line race names."""
+    s = str(text).replace("\r", "\n")
+    s = unescape(s)
+    # Preserve table structure while normalizing HTML remnants.
+    s = re.sub(r'<br\s*/?>', '\n', s, flags=re.I)
+    s = re.sub(r'<[^>]+>', ' ', s)
+
+    lines = [norm(x).strip() for x in s.splitlines() if norm(x).strip()]
+    races = []
+    course = ""
+    meeting = ""
+    pending_race = None
+    pending_condition = []
+
+    def flush_pending():
+        nonlocal pending_race, pending_condition
+        if pending_race is None or not course:
+            pending_race = None
+            pending_condition = []
+            return
+        race = pending_race
+        cond = norm(" ".join(pending_condition))
+        # Extract time first.
+        tm = re.search(r'(\d{1,2})時\s*(\d{1,2})分', cond)
+        if not tm:
+            pending_race = None
+            pending_condition = []
+            return
+        start = f"{int(tm.group(1)):02d}:{int(tm.group(2)):02d}"
+        cond = re.sub(r'\|?\s*\d{1,2}時\s*\d{1,2}分.*$', '', cond).strip(" |")
+        # Extract distance/surface.
+        dm = re.search(r'([0-9,]+)\s*（\s*(芝(?:・外)?|ダ)\s*）', cond)
+        if not dm:
+            dm = re.search(r'([0-9,]+)\s*[（(]\s*(芝(?:・外)?|ダ)\s*[）)]', cond)
+        distance = (dm.group(1).replace(",", "") + "m") if dm else ""
+        surface = dm.group(2) if dm else ""
+        name = cond
+        if dm:
+            name = cond[:dm.start()].strip()
+        # JRA sometimes puts a line break before the race title.
+        name = re.sub(r'\s+', ' ', name).strip()
+        races.append({
+            "date": ds, "course": course, "race": race,
+            "raceName": name, "raceCondition": cond,
+            "distance": distance, "surface": surface,
+            "startTime": start,
+            "raceKey": f"{ds}-{course}-{race}", "meeting": meeting
+        })
+        pending_race = None
+        pending_condition = []
+
+    for line in lines:
+        # Heading: 4回中山2日
+        hm = re.search(r'(\d{1,2})回\s*([^\s|]+?)(\d{1,2})日', line)
+        if hm:
+            flush_pending()
+            meeting = f"{hm.group(1)}回{hm.group(3)}日"
+            course = hm.group(2)
+            continue
+
+        # Ignore header/separator rows.
+        if "レース番号" in line and "発走時刻" in line:
+            continue
+        if re.fullmatch(r'[-| :]+', line):
+            continue
+
+        # Exact common JRA table row.
+        rm = re.match(r'^\|?\s*(\d{1,2})レース\s*\|\s*(.*?)\s*\|\s*(\d{1,2})時\s*(\d{1,2})分\s*\|?\s*$', line)
+        if rm:
+            flush_pending()
+            pending_race = int(rm.group(1))
+            pending_condition = [rm.group(2), f"{rm.group(3)}時{rm.group(4)}分"]
+            flush_pending()
+            continue
+
+        # Alternate flattened table: "1レース ... 10時05分"
+        rm = re.search(r'(?<!\d)(\d{1,2})レース\b(.*?)(\d{1,2})時\s*(\d{1,2})分', line)
+        if rm:
+            flush_pending()
+            pending_race = int(rm.group(1))
+            pending_condition = [rm.group(2), f"{rm.group(3)}時{rm.group(4)}分"]
+            flush_pending()
+            continue
+
+        # Markdown may split the race title over multiple lines.
+        if pending_race is not None:
+            pending_condition.append(line)
+
+    flush_pending()
+
+    # Deduplicate.
+    seen = set()
+    result = []
+    for r in races:
+        key = (r["date"], r["course"], r["race"])
+        if key not in seen and 1 <= r["race"] <= 12:
+            seen.add(key)
+            result.append(r)
+    return result
+
 def parse_table_rows(text,ds):
+    races = parse_jra_markdown(text, ds)
+    if races:
+        return races
+    return parse_generic_table_rows(text, ds)
+
+def parse_generic_table_rows(text,ds):
     """Parse JRA table rows in HTML, Markdown, or flattened text."""
     s=str(text)
     # Normalize HTML table cells into pipe-delimited rows.
@@ -208,12 +315,15 @@ def parse_table_rows(text,ds):
     seen=set()
     return [r for r in out if not ((r["date"],r["course"],r["race"]) in seen or seen.add((r["date"],r["course"],r["race"])))]
 
+
 def fetch_date(ds):
     d=date.fromisoformat(ds)
-    target=f"https://www.jra.go.jp/keiba/calendar{d.year}/{d.year}/{d.month}/{d.month:02d}{d.day:02d}.html"
+    path=f"/keiba/calendar2026/2026/{d.month}/{d.month:02d}{d.day:02d}.html"
     sources=[
-        ("JRA",target),
-        ("Jina",f"https://r.jina.ai/{target}")
+        ("JRA",f"https://www.jra.go.jp{path}"),
+        ("JRA-alt",f"https://jra.jp{path}"),
+        ("Jina",f"https://r.jina.ai/https://www.jra.go.jp{path}"),
+        ("Jina-alt",f"https://r.jina.ai/https://jra.jp{path}")
     ]
     for source,url in sources:
         try:
@@ -221,16 +331,9 @@ def fetch_date(ds):
             if is_forbidden(raw):
                 print(f"WARN {ds}: {source} returned 403/Forbidden; skipping")
                 continue
-            # Try direct parsing first.
             races=parse_table_rows(raw,ds)
             if races:
                 print(f"OK {ds}: {source} parsed {len(races)} races")
-                return races
-            # HTML cleanup fallback.
-            cleaned=strip_html(raw)
-            races=parse_table_rows(cleaned,ds)
-            if races:
-                print(f"OK {ds}: {source} parsed {len(races)} races after HTML cleanup")
                 return races
             print(f"WARN {ds}: {source} returned content but no race rows were detected")
         except Exception as e:

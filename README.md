@@ -43,7 +43,7 @@ GitHubへV5.4.3をアップロードした後、Actionsタブの `Update JRA sch
 ※JRAの各日番組表は予定情報です。最新の出馬表でレース順、馬場、距離、発走時刻等が変更される場合があります。
 
 
-## V5.4.8 diagnostic note
+## V5.4.9 diagnostic note
 - Jina Reader HTTP content is now logged in a bounded excerpt when the parser finds 0 races.
 - This release is for identifying the actual Jina response format before finalizing the parser.
 - Existing `data/jra-schedule.json` is still protected from overwrite when 0 races are fetched.
