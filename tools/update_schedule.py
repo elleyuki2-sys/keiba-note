@@ -13,7 +13,7 @@ DIST_RE=re.compile(r"([0-9,]+)\s*[（(]\s*(芝(?:・外)?|ダ|芝→ダート|�
 
 def fetch(url, timeout=30, jina=False):
     headers={
-        "User-Agent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/153 Safari/537.36 (KEIBA-NOTE/5.4.6)",
+        "User-Agent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/153 Safari/537.36 (KEIBA-NOTE/5.4.7)",
         "Accept":"text/plain,text/markdown,text/html;q=0.9,*/*;q=0.8",
         "Accept-Language":"ja,en-US;q=0.8,en;q=0.6",
         "Cache-Control":"no-cache",
@@ -146,30 +146,43 @@ def strip_html(html):
     text=re.sub(r'<[^>]+>',' ',html)
     return '\n'.join(norm(x) for x in text.splitlines() if norm(x))
 
+def diagnose_jina_response(ds, raw, limit=8000):
+    """Print a bounded Jina response excerpt for parser debugging."""
+    print(f"===== JINA RESPONSE START {ds} =====")
+    sample = str(raw)[:limit]
+    print(sample)
+    if len(str(raw)) > limit:
+        print(f"... [truncated; total chars={len(str(raw))}]")
+    print(f"===== JINA RESPONSE END {ds} =====")
+
 def fetch_date(ds):
     d=date.fromisoformat(ds)
     target=f"https://www.jra.go.jp/keiba/calendar{d.year}/{d.year}/{d.month}/{d.month:02d}{d.day:02d}.html"
-
-    try:
-        raw=fetch(f"https://r.jina.ai/{target}",jina=True)
-        races=parse_text(raw,ds)
-        if races:
-            return races
-        print(f"WARN {ds}: Jina returned content but parser found 0 races",file=sys.stderr)
-    except Exception as e:
-        print(f"WARN {ds}: Jina fetch failed: {e}",file=sys.stderr)
-
-    try:
-        raw=fetch(target)
-        races=parse_text(strip_html(raw),ds)
-        if races:
-            return races
-        print(f"WARN {ds}: JRA returned content but parser found 0 races",file=sys.stderr)
-    except HTTPError as e:
-        print(f"WARN {ds}: JRA HTTP {e.code} {e.reason}",file=sys.stderr)
-    except Exception as e:
-        print(f"WARN {ds}: JRA fetch failed: {e}",file=sys.stderr)
+    jina_url=f"https://r.jina.ai/{target}"
+    # Diagnostic build: inspect the first Jina response that returns HTTP content
+    # but produces zero parsed races. Do not spam logs for every date.
+    diagnostic_shown=False
+    for url,jina in [(jina_url,True),(target,False)]:
+        try:
+            raw=fetch(url)
+            if jina:
+                r=parse_text(raw,ds)
+                if r:
+                    return r
+                print(f"WARN {ds}: Jina returned content but parser found 0 races")
+                if not diagnostic_shown:
+                    diagnose_jina_response(ds, raw)
+                    diagnostic_shown=True
+            else:
+                r=parse_text(strip_html(raw),ds)
+                if r:
+                    return r
+                print(f"WARN {ds}: JRA returned content but parser found 0 races")
+        except Exception as e:
+            source="Jina" if jina else "JRA"
+            print(f"WARN {ds}: {source} {e}",file=sys.stderr)
     return []
+
 
 def main():
     today=date.today()

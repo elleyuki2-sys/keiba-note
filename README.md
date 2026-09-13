@@ -41,3 +41,9 @@ OpenAI APIは使用しません。ChatGPTで作成した予想を手動登録・
 GitHubへV5.4.3をアップロードした後、Actionsタブの `Update JRA schedule` から `Run workflow` を1回実行すると、その時点の番組データをすぐ更新できます。以後は毎日自動更新されます。
 
 ※JRAの各日番組表は予定情報です。最新の出馬表でレース順、馬場、距離、発走時刻等が変更される場合があります。
+
+
+## V5.4.7 diagnostic note
+- Jina Reader HTTP content is now logged in a bounded excerpt when the parser finds 0 races.
+- This release is for identifying the actual Jina response format before finalizing the parser.
+- Existing `data/jra-schedule.json` is still protected from overwrite when 0 races are fetched.
