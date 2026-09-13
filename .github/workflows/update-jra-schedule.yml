@@ -1,10 +1,10 @@
 name: Update JRA schedule
 
 on:
-  # JRA's planned daily program is stable enough to update once a week.
-  # The workflow can also be started manually from GitHub Actions.
+  # Run daily at 10:00 JST. Future dates are not required; the updater
+  # refreshes today and the previous 7 days so same-day accounting works.
   schedule:
-    - cron: "0 8 * * 4"
+    - cron: "0 1 * * *"
   workflow_dispatch:
 
 permissions:
