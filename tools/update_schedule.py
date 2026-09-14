@@ -1,16 +1,18 @@
-"""Update KEIBA NOTE's bundled JRA schedule safely.
+"""Update KEIBA NOTE's bundled race-name schedule safely.
 
-V5.4.12 policy:
-- JRA official daily program is the only online source.
-- The updater prioritizes today and recent past data; future data is optional.
-- Failed/partial downloads never overwrite the existing JSON.
-- The application itself never depends on this script or on live JRA access.
+V5.4.13 policy:
+- The app needs only date/course/race number/race name as the minimum.
+- Try the JRA official daily program directly first.
+- If JRA blocks GitHub Actions, try the same official page through Jina Reader.
+- Parse both HTML tables and Markdown/text representations.
+- Partial valid race data is accepted; bad data never overwrites existing JSON.
+- Future race acquisition is optional. Target is today + previous 7 days (JST).
 """
 import json
 import re
 import sys
 import time
-from datetime import date, datetime, timedelta
+from datetime import datetime, timedelta
 from html import unescape
 from html.parser import HTMLParser
 from pathlib import Path
@@ -18,16 +20,23 @@ from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 from zoneinfo import ZoneInfo
 
-COURSES = {"札幌", "函館", "福島", "新潟", "東京", "中山", "中京", "京都", "阪神", "小倉"}
-HEADING_RE = re.compile(r"(\d{1,2})\s*回\s*(札幌|函館|福島|新潟|東京|中山|中京|京都|阪神|小倉)\s*(\d{1,2})\s*日")
+COURSES = ("札幌", "函館", "福島", "新潟", "東京", "中山", "中京", "京都", "阪神", "小倉")
+COURSE_RE = "|".join(COURSES)
+MEETING_RE = re.compile(r"(\d{1,2})\s*回\s*(札幌|函館|福島|新潟|東京|中山|中京|京都|阪神|小倉)\s*(\d{1,2})\s*日")
 RACE_RE = re.compile(r"(?:第\s*)?(\d{1,2})\s*(?:レース|R|Ｒ)(?![A-Za-z])", re.I)
-TIME_RE = re.compile(r"(\d{1,2})\s*時\s*(\d{1,2})\s*分")
+TIME_RE = re.compile(r"(?:発走(?:時刻)?\s*)?(\d{1,2})\s*時\s*(\d{1,2})\s*分")
 DIST_RE = re.compile(r"([0-9,]+)\s*[（(]\s*(芝(?:・外)?|ダ|ダート)\s*[）)]")
+DATE_TEXT_RE = re.compile(r"\d{4}年\d{1,2}月\d{1,2}日(?:（[^）]+）)?")
 
 
-class JraTableParser(HTMLParser):
-    """Extract JRA table rows while retaining the current course heading."""
+def normalize(value):
+    value = unescape(str(value)).replace("\xa0", " ").replace("\u3000", " ")
+    value = re.sub(r"\\\\", "", value)
+    value = re.sub(r"\s+", " ", value).strip()
+    return value
 
+
+class JraHtmlParser(HTMLParser):
     def __init__(self):
         super().__init__(convert_charrefs=True)
         self.rows = []
@@ -54,8 +63,7 @@ class JraTableParser(HTMLParser):
     def handle_endtag(self, tag):
         tag = tag.lower()
         if tag in {"h1", "h2", "h3", "h4", "h5", "h6"} and self.heading_depth:
-            text = normalize(" ".join(self.heading_text))
-            self._update_meeting(text)
+            self._update_meeting(normalize(" ".join(self.heading_text)))
             self.heading_depth -= 1
         elif tag in {"td", "th"} and self.current_row is not None and self.current_cell is not None:
             self.current_row.append(normalize("".join(self.current_cell)))
@@ -75,163 +83,244 @@ class JraTableParser(HTMLParser):
             self.current_cell.append(data)
 
     def _update_meeting(self, text):
-        m = HEADING_RE.search(text)
+        m = MEETING_RE.search(text)
         if m:
             self.current_course = m.group(2)
             self.current_meeting = f"{m.group(1)}回{m.group(3)}日"
 
 
-def normalize(value):
-    value = unescape(str(value)).replace("\xa0", " ").replace("\u3000", " ")
-    value = re.sub(r"\s+", " ", value).strip()
-    return value
+def parse_meetings(text):
+    return [(m.start(), m.group(2), f"{m.group(1)}回{m.group(3)}日") for m in MEETING_RE.finditer(normalize(text))]
 
 
-def fetch(url, timeout=10):
-    request = Request(
-        url,
-        headers={
-            "User-Agent": "KEIBA-NOTE/5.4.12 (+GitHub Actions)",
-            "Accept": "text/html,application/xhtml+xml",
-            "Accept-Language": "ja,en-US;q=0.9,en;q=0.8",
-            "Referer": "https://www.jra.go.jp/",
-            "Connection": "close",
-        },
-    )
+def assign_meetings(rows, all_text):
+    """Assign a course/meeting when the source representation lost headings."""
+    if any(c for c, _, _ in rows):
+        return rows
+    meetings = parse_meetings(all_text)
+    if not meetings:
+        return rows
+    out = []
+    idx = 0
+    count = 0
+    for row in rows:
+        course, meeting, cells = row
+        if course:
+            out.append(row)
+            continue
+        out.append((meetings[idx][1], meetings[idx][2], cells))
+        if RACE_RE.search(" | ".join(cells)):
+            count += 1
+            if count >= 12 and idx + 1 < len(meetings):
+                idx += 1
+                count = 0
+    return out
+
+
+def race_name_from_cells(cells):
+    texts = []
+    for cell in cells:
+        c = normalize(cell)
+        if not c:
+            continue
+        if c in {"レース番号", "レース名・条件", "発走時刻", "Race", "レース"}:
+            continue
+        if RACE_RE.fullmatch(c) or TIME_RE.fullmatch(c):
+            continue
+        # Remove common Markdown table decoration and link syntax.
+        c = re.sub(r"^\[([^\]]+)\]\([^)]*\)$", r"\1", c)
+        c = c.replace("|", " ")
+        texts.append(c)
+    if not texts:
+        return "", ""
+    condition = normalize(" ".join(texts))
+    condition = DATE_TEXT_RE.sub("", condition).strip()
+    condition = re.sub(r"^(?:第\s*)?\d{1,2}\s*(?:レース|R|Ｒ)\s*", "", condition, flags=re.I)
+    dm = DIST_RE.search(condition)
+    name = condition[:dm.start()].strip() if dm else condition
+    # Avoid treating generic labels as a race name.
+    if name in {"開催日程", "競馬番組", "JRA", "本文へ移動する"}:
+        return "", ""
+    return name, condition
+
+
+def build_race(ds, course, meeting, race, name, condition="", start_time=""):
+    if not course or course not in COURSES or not (1 <= race <= 12) or not name:
+        return None
+    dm = DIST_RE.search(condition)
+    distance = dm.group(1).replace(",", "") + "m" if dm else ""
+    surface = dm.group(2) if dm else ""
+    if surface == "ダート":
+        surface = "ダ"
+    return {
+        "date": ds,
+        "course": course,
+        "race": race,
+        "raceName": name,
+        "raceCondition": condition or name,
+        "distance": distance,
+        "surface": surface,
+        "startTime": start_time,
+        "raceKey": f"{ds}-{course}-{race}",
+        "meeting": meeting or "",
+    }
+
+
+def parse_html(html, ds):
+    parser = JraHtmlParser()
+    parser.feed(str(html))
+    parser.close()
+    rows = assign_meetings(parser.rows, " ".join(parser.all_text))
+    result = []
+    seen = set()
+    for course, meeting, cells in rows:
+        joined = " | ".join(cells)
+        rm = RACE_RE.search(joined)
+        if not rm:
+            continue
+        race = int(rm.group(1))
+        tm = TIME_RE.search(joined)
+        name, condition = race_name_from_cells(cells)
+        item = build_race(ds, course, meeting, race, name, condition,
+                          f"{int(tm.group(1)):02d}:{int(tm.group(2)):02d}" if tm else "")
+        if item and item["raceKey"] not in seen:
+            seen.add(item["raceKey"])
+            result.append(item)
+    return sorted(result, key=lambda r: (r["course"], r["race"]))
+
+
+def markdown_lines(text):
+    lines = []
+    for raw in str(text).splitlines():
+        line = raw.strip()
+        if not line or line.startswith("[![") or line.startswith("---"):
+            continue
+        line = re.sub(r"^\s*#+\s*", "", line)
+        line = line.replace("\\|", "|")
+        lines.append(normalize(line))
+    return lines
+
+
+def parse_markdown(text, ds):
+    """Parse Jina Reader's Markdown/text output without depending on HTML tags."""
+    lines = markdown_lines(text)
+    meetings = []
+    for i, line in enumerate(lines):
+        m = MEETING_RE.search(line)
+        if m:
+            meetings.append((i, m.group(2), f"{m.group(1)}回{m.group(3)}日"))
+    result = []
+    seen = set()
+    course_idx = 0
+    race_count = 0
+    current_course = meetings[0][1] if meetings else ""
+    current_meeting = meetings[0][2] if meetings else ""
+
+    for i, line in enumerate(lines):
+        # Prefer an explicit meeting/course line whenever present.
+        mm = MEETING_RE.search(line)
+        if mm:
+            current_course = mm.group(2)
+            current_meeting = f"{mm.group(1)}回{mm.group(3)}日"
+            for j, (pos, _, _) in enumerate(meetings):
+                if pos == i:
+                    course_idx = j
+                    race_count = 0
+                    break
+            continue
+
+        rm = RACE_RE.search(line)
+        if not rm:
+            continue
+        race = int(rm.group(1))
+        if not 1 <= race <= 12:
+            continue
+
+        # A race line in Jina Markdown is commonly a table row. Collect its cells.
+        candidate = line
+        if "|" in candidate:
+            cells = [normalize(x) for x in candidate.strip("|").split("|")]
+        else:
+            # If the race marker is on its own line, use the next few lines.
+            cells = [candidate]
+            for nxt in lines[i + 1:i + 4]:
+                if RACE_RE.search(nxt) or MEETING_RE.search(nxt):
+                    break
+                if nxt:
+                    cells.append(nxt)
+                    if len(cells) >= 3:
+                        break
+        name, condition = race_name_from_cells(cells)
+        if not name:
+            continue
+        tm = TIME_RE.search(" | ".join(cells))
+        if not current_course and meetings:
+            current_course = meetings[min(course_idx, len(meetings)-1)][1]
+            current_meeting = meetings[min(course_idx, len(meetings)-1)][2]
+        item = build_race(ds, current_course, current_meeting, race, name, condition,
+                          f"{int(tm.group(1)):02d}:{int(tm.group(2)):02d}" if tm else "")
+        if item and item["raceKey"] not in seen:
+            seen.add(item["raceKey"])
+            result.append(item)
+            race_count += 1
+            if race == 12 and course_idx + 1 < len(meetings):
+                course_idx += 1
+                current_course = meetings[course_idx][1]
+                current_meeting = meetings[course_idx][2]
+                race_count = 0
+    return sorted(result, key=lambda r: (r["course"], r["race"]))
+
+
+def fetch(url, timeout=15, user_agent="KEIBA-NOTE/5.4.13 (+GitHub Actions)"):
+    request = Request(url, headers={
+        "User-Agent": user_agent,
+        "Accept": "text/html,application/xhtml+xml,text/plain;q=0.9,*/*;q=0.8",
+        "Accept-Language": "ja,en-US;q=0.9,en;q=0.8",
+        "Referer": "https://www.jra.go.jp/",
+        "Connection": "close",
+    })
     with urlopen(request, timeout=timeout) as response:
         return response.read().decode("utf-8", "replace")
 
 
-def parse_meetings_from_text(text):
-    """Find all course/meeting headings anywhere in the document text."""
-    return [(m.start(), m.group(2), f"{m.group(1)}回{m.group(3)}日") for m in HEADING_RE.finditer(normalize(text))]
+def fetch_jra_page(ds):
+    d = datetime.strptime(ds, "%Y-%m-%d").date()
+    url = f"https://www.jra.go.jp/keiba/calendar{d.year}/{d.year}/{d.month}/{d.month:02d}{d.day:02d}.html"
+    try:
+        raw = fetch(url)
+        races = parse_html(raw, ds)
+        if races:
+            print(f"OK {ds}: JRA direct parsed {len(races)} minimum race records")
+            return races
+        print(f"WARN {ds}: JRA direct content received but 0 minimum race records parsed")
+    except HTTPError as exc:
+        print(f"WARN {ds}: JRA direct HTTP {exc.code}: {exc.reason}")
+    except (URLError, TimeoutError) as exc:
+        print(f"WARN {ds}: JRA direct network error: {exc}")
+    except Exception as exc:
+        print(f"WARN {ds}: JRA direct processing error: {exc}")
+
+    # Jina Reader is only a server-side fallback; the browser never calls it.
+    jina_url = "https://r.jina.ai/http://www.jra.go.jp" + url.split("www.jra.go.jp", 1)[1]
+    try:
+        text = fetch(jina_url, timeout=25, user_agent="Mozilla/5.0 (compatible; KEIBA-NOTE/5.4.13)")
+        races = parse_markdown(text, ds)
+        if races:
+            print(f"OK {ds}: Jina fallback parsed {len(races)} minimum race records")
+            return races
+        print(f"WARN {ds}: Jina content received but 0 minimum race records parsed")
+    except HTTPError as exc:
+        print(f"WARN {ds}: Jina HTTP {exc.code}: {exc.reason}")
+    except (URLError, TimeoutError) as exc:
+        print(f"WARN {ds}: Jina network error: {exc}")
+    except Exception as exc:
+        print(f"WARN {ds}: Jina processing error: {exc}")
+    return []
 
 
-def infer_course_for_rows(parser):
-    """Fallback for pages where the meeting heading is not an h1-h6 element."""
-    if any(course for course, _, _ in parser.rows):
-        return parser.rows
-
-    full_text = " ".join(parser.all_text)
-    meetings = parse_meetings_from_text(full_text)
-    if not meetings:
-        return parser.rows
-
-    # When headings are outside h1-h6, use their order. JRA's daily program
-    # presents one table per course, each containing a continuous 1R..12R list.
-    output = []
-    current = 0
-    counts = {}
-    for _, _, cells in parser.rows:
-        if len(meetings) > 1:
-            # Switch course after a row containing a new course heading if it
-            # is represented inside the row text; otherwise use the expected
-            # 12-race blocks.
-            joined = " ".join(cells)
-            found = HEADING_RE.search(joined)
-            if found:
-                current = min(current + 1, len(meetings) - 1)
-        course = meetings[current][1]
-        meeting = meetings[current][2]
-        output.append((course, meeting, cells))
-        race_match = RACE_RE.search(" ".join(cells))
-        if race_match:
-            counts[current] = counts.get(current, 0) + 1
-            if counts[current] >= 12 and current < len(meetings) - 1:
-                current += 1
-    return output
-
-
-def parse_html(html, ds):
-    parser = JraTableParser()
-    parser.feed(str(html))
-    parser.close()
-    rows = infer_course_for_rows(parser)
-    result = []
-    seen = set()
-
-    for course, meeting, cells in rows:
-        if not course or not meeting or len(cells) < 2:
-            continue
-        joined = " | ".join(c for c in cells if c)
-        race_match = RACE_RE.search(joined)
-        time_match = TIME_RE.search(joined)
-        if not race_match or not time_match:
-            continue
-        race = int(race_match.group(1))
-        if not 1 <= race <= 12:
-            continue
-
-        # Remove the race-number cell/header and the start-time text. The
-        # remaining text is the official race name/conditions.
-        condition_parts = []
-        for cell in cells:
-            if not cell:
-                continue
-            if RACE_RE.fullmatch(cell):
-                continue
-            if TIME_RE.fullmatch(cell):
-                continue
-            if cell in {"レース番号", "レース名・条件", "発走時刻"}:
-                continue
-            condition_parts.append(cell)
-        condition = normalize(" ".join(condition_parts))
-        if not condition:
-            continue
-
-        dm = DIST_RE.search(condition)
-        distance = dm.group(1).replace(",", "") + "m" if dm else ""
-        surface = dm.group(2) if dm else ""
-        if surface == "ダート":
-            surface = "ダ"
-
-        name = condition[: dm.start()].strip() if dm else condition
-        key = (ds, course, race)
-        if key in seen:
-            continue
-        seen.add(key)
-        result.append(
-            {
-                "date": ds,
-                "course": course,
-                "race": race,
-                "raceName": name,
-                "raceCondition": condition,
-                "distance": distance,
-                "surface": surface,
-                "startTime": f"{int(time_match.group(1)):02d}:{int(time_match.group(2)):02d}",
-                "raceKey": f"{ds}-{course}-{race}",
-                "meeting": meeting,
-            }
-        )
-
-    return sorted(result, key=lambda r: (r["course"], r["race"]))
-
-
-def validate_races(races, ds):
-    """Accept only complete-looking race lists; distance/surface are optional."""
-    if not races:
-        return False
-    by_course = {}
-    for race in races:
-        if race.get("date") != ds:
-            return False
-        if race.get("course") not in COURSES:
-            return False
-        try:
-            number = int(race.get("race", 0))
-        except Exception:
-            return False
-        if not 1 <= number <= 12:
-            return False
-        required = ["raceName", "raceCondition", "startTime", "raceKey", "meeting"]
-        if any(not str(race.get(k, "")).strip() for k in required):
-            return False
-        by_course.setdefault(race["course"], set()).add(number)
-
-    # A valid course block should normally contain 1R..12R. We require all
-    # 12 here because this data is the race selector, not a partial result feed.
-    return all(len(nums) == 12 and min(nums) == 1 and max(nums) == 12 for nums in by_course.values())
+def target_dates():
+    today = datetime.now(ZoneInfo("Asia/Tokyo")).date()
+    return [today - timedelta(days=i) for i in range(8)]
 
 
 def load_existing(path):
@@ -242,16 +331,6 @@ def load_existing(path):
     except Exception as exc:
         print(f"WARN: existing JSON could not be read: {exc}")
         return {}, []
-
-
-def target_dates():
-    """Return today plus the previous 7 calendar days in Japan time.
-
-    Future dates are intentionally not required. This keeps the updater useful
-    for same-day accounting even when JRA blocks future-page requests.
-    """
-    today = datetime.now(ZoneInfo("Asia/Tokyo")).date()
-    return [today - timedelta(days=offset) for offset in range(0, 8)]
 
 
 def main():
@@ -268,45 +347,38 @@ def main():
         if key[0] and key[1] and key[2]:
             existing[key] = race
 
-    successful_dates = []
-    fetched = 0
-
+    added = 0
+    successful_dates = 0
     for d in target_dates():
         ds = d.isoformat()
-        url = f"https://www.jra.go.jp/keiba/calendar{d.year}/{d.year}/{d.month}/{d.month:02d}{d.day:02d}.html"
-        try:
-            raw = fetch(url)
-            races = parse_html(raw, ds)
-            if not validate_races(races, ds):
-                print(f"WARN {ds}: JRA content received but daily program validation failed ({len(races)} races parsed)")
-                continue
-            print(f"OK {ds}: JRA official parsed {len(races)} races")
-            successful_dates.append(ds)
-            fetched += len(races)
-            for race in races:
-                existing[(race["date"], race["course"], race["race"])] = race
-        except HTTPError as exc:
-            print(f"WARN {ds}: JRA HTTP Error {exc.code}: {exc.reason}")
-        except (URLError, TimeoutError) as exc:
-            print(f"WARN {ds}: JRA network error: {exc}")
-        except Exception as exc:
-            print(f"WARN {ds}: JRA processing error: {exc}")
+        races = fetch_jra_page(ds)
+        if not races:
+            continue
+        successful_dates += 1
+        for race in races:
+            key = (race["date"], race["course"], race["race"])
+            old = existing.get(key, {})
+            # Keep richer fields from an older record if the fallback only supplied the minimum.
+            merged = dict(old)
+            merged.update({k: v for k, v in race.items() if v not in ("", None)})
+            existing[key] = merged
+            added += 1
         time.sleep(0.2)
 
-    if not fetched:
-        print("INFO: no new valid JRA schedule data; existing JSON was preserved.")
+    if not successful_dates:
+        print("INFO: no new valid race-name data; existing JSON was preserved.")
         return 0
 
     races = sorted(existing.values(), key=lambda r: (r.get("date", ""), r.get("course", ""), int(r.get("race", 0))))
     payload = {
         "updatedAt": datetime.now(ZoneInfo("Asia/Tokyo")).isoformat(timespec="seconds"),
-        "source": "JRA official daily program",
+        "source": "JRA official daily program (direct + Jina server-side fallback)",
         "races": races,
     }
     temp = path.with_suffix(".json.tmp")
     temp.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     temp.replace(path)
-    print(f"OK: added/updated {fetched} races across {len(successful_dates)} date(s); stored {len(races)} races")
+    print(f"OK: merged {added} race records from {successful_dates} date(s); stored {len(races)} records")
     return 0
 
 
