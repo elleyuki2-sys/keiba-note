@@ -1,12 +1,12 @@
 """Update KEIBA NOTE's bundled race-name schedule safely.
 
-V5.4.13 policy:
+V5.4.14 policy:
 - The app needs only date/course/race number/race name as the minimum.
 - Try the JRA official daily program directly first.
 - If JRA blocks GitHub Actions, try the same official page through Jina Reader.
 - Parse both HTML tables and Markdown/text representations.
 - Partial valid race data is accepted; bad data never overwrites existing JSON.
-- Future race acquisition is optional. Target is today + previous 7 days (JST).
+- Future race acquisition is enabled. Target is previous 7 days + today + next 14 days (JST).
 """
 import json
 import re
@@ -271,7 +271,7 @@ def parse_markdown(text, ds):
     return sorted(result, key=lambda r: (r["course"], r["race"]))
 
 
-def fetch(url, timeout=15, user_agent="KEIBA-NOTE/5.4.13 (+GitHub Actions)"):
+def fetch(url, timeout=15, user_agent="KEIBA-NOTE/5.4.14 (+GitHub Actions)"):
     request = Request(url, headers={
         "User-Agent": user_agent,
         "Accept": "text/html,application/xhtml+xml,text/plain;q=0.9,*/*;q=0.8",
@@ -303,7 +303,7 @@ def fetch_jra_page(ds):
     # Jina Reader is only a server-side fallback; the browser never calls it.
     jina_url = "https://r.jina.ai/http://www.jra.go.jp" + url.split("www.jra.go.jp", 1)[1]
     try:
-        text = fetch(jina_url, timeout=25, user_agent="Mozilla/5.0 (compatible; KEIBA-NOTE/5.4.13)")
+        text = fetch(jina_url, timeout=25, user_agent="Mozilla/5.0 (compatible; KEIBA-NOTE/5.4.14)")
         races = parse_markdown(text, ds)
         if races:
             print(f"OK {ds}: Jina fallback parsed {len(races)} minimum race records")
@@ -319,8 +319,17 @@ def fetch_jra_page(ds):
 
 
 def target_dates():
+    """Return a small rolling window around today.
+
+    Past 7 days are kept for result/accounting continuity. The next 14 days
+    are newly included so planned JRA programs can appear before race day.
+    Dates for which JRA has not published a program simply return no records
+    and therefore never overwrite existing JSON.
+    """
     today = datetime.now(ZoneInfo("Asia/Tokyo")).date()
-    return [today - timedelta(days=i) for i in range(8)]
+    start = today - timedelta(days=7)
+    end = today + timedelta(days=14)
+    return [start + timedelta(days=i) for i in range((end - start).days + 1)]
 
 
 def load_existing(path):

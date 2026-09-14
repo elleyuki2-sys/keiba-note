@@ -1,8 +1,8 @@
 name: Update JRA schedule
 
 on:
-  # Run daily at 10:00 JST. Future dates are not required; the updater
-  # refreshes today and the previous 7 days so same-day accounting works.
+  # Run daily at 10:00 JST. The updater refreshes the previous 7 days for accounting continuity,
+  # today, and the next 14 days so planned race programs can appear early.
   schedule:
     - cron: "0 1 * * *"
   workflow_dispatch:
