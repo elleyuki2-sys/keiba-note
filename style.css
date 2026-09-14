@@ -62,3 +62,14 @@
 /* V5.4.15: menu is permanently available in the sticky header */
 .menuToggle{position:static;left:auto;right:auto;bottom:auto;z-index:auto;box-shadow:none}
 @media(max-width:600px){.menuToggle{position:static;right:auto;bottom:auto}}
+
+/* V5.4.15 mobile header refinement: keep the sticky header compact. */
+@media(max-width:600px){
+  header{padding:7px 10px;gap:6px;}
+  header small{display:none;}
+  header h1{margin:0;font-size:18px;line-height:1.15;letter-spacing:.2px;}
+  .headerActions{gap:6px;width:100%;}
+  .syncStatus{font-size:10px;padding:5px 7px;}
+  .primaryActions{gap:6px;}
+  .primaryActions button{padding:8px 6px;font-size:11px;line-height:1.2;border-radius:8px;}
+}
