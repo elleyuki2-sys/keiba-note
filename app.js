@@ -113,7 +113,30 @@ async function loadJraSchedule(date){
   await loadBundledSchedule(date);
 }
 
-loadScheduleMonitor();
+function openScheduleMonitor(){
+  const modal=$("scheduleMonitorModal");
+  if(!modal)return;
+  modal.classList.remove("hide");
+  loadScheduleMonitor();
+}
+function closeScheduleMonitor(){
+  const modal=$("scheduleMonitorModal");
+  if(modal)modal.classList.add("hide");
+}
+const scheduleMonitorLink=$("menuScheduleMonitorLink");
+if(scheduleMonitorLink)scheduleMonitorLink.addEventListener("click",e=>{
+  e.preventDefault();
+  $("sideMenu")?.classList.remove("open");
+  $("menuBackdrop")?.classList.remove("open");
+  openScheduleMonitor();
+});
+$("closeScheduleMonitor")?.addEventListener("click",closeScheduleMonitor);
+$("scheduleMonitorModal")?.addEventListener("click",e=>{
+  if(e.target.id==="scheduleMonitorModal")closeScheduleMonitor();
+});
+document.addEventListener("keydown",e=>{
+  if(e.key==="Escape")closeScheduleMonitor();
+});
 
 $("date").addEventListener("change",()=>loadJraSchedule($("date").value));$("course").addEventListener("change",()=>{const c=$("course").value;const races=window.KEIBA_SCHEDULE.filter(x=>x.course===c);setRaceOptions(races);$("raceStatus").textContent=races.length?`${races.length}レースを表示しています。`:"レース情報がありません。"});$("race").addEventListener("change",()=>{const r=window.KEIBA_SCHEDULE.find(x=>x.course===$("course").value&&String(x.race)===$("race").value);window.KEIBA_SELECTED_RACE=r||null;showRaceMeta(r)});
 
