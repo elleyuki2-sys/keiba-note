@@ -61,6 +61,50 @@ async function loadBundledSchedule(date){
     return false;
   }
 }
+function formatScheduleUpdatedAt(value){
+  if(!value)return "未取得";
+  const d=new Date(value);
+  if(Number.isNaN(d.getTime()))return "日時不明";
+  return new Intl.DateTimeFormat("ja-JP",{timeZone:"Asia/Tokyo",year:"numeric",month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit"}).format(d);
+}
+function renderScheduleMonitor(json){
+  const badge=$("scheduleUpdateBadge"),updated=$("scheduleUpdatedAt"),count=$("scheduleRaceCount"),range=$("scheduleDateRange"),note=$("scheduleMonitorNote");
+  if(!badge||!updated||!count||!range||!note)return;
+  const races=Array.isArray(json?.races)?json.races.filter(r=>r&&r.date):[];
+  const dates=[...new Set(races.map(r=>r.date))].sort();
+  updated.textContent=formatScheduleUpdatedAt(json?.updatedAt);
+  count.textContent=`${races.length.toLocaleString("ja-JP")}レース`;
+  range.textContent=dates.length?`${dates[0]} ～ ${dates[dates.length-1]}`:"データなし";
+  const t=json?.updatedAt?new Date(json.updatedAt).getTime():NaN;
+  const ageHours=Number.isFinite(t)?Math.max(0,(Date.now()-t)/3600000):Infinity;
+  badge.className="scheduleUpdateBadge";
+  if(!races.length||!Number.isFinite(t)){
+    badge.textContent="⚠ 要確認";badge.classList.add("warn");
+    note.textContent="レース情報を確認できませんでした。GitHub Actionsの自動更新状況を確認してください。";
+  }else if(ageHours<=48){
+    badge.textContent="● 自動更新：正常";badge.classList.add("ok");
+    note.textContent="最新のレース情報ファイルを読み込んでいます。通常はGitHubでの手動更新は不要です。";
+  }else if(ageHours<=72){
+    badge.textContent="△ 更新を確認";badge.classList.add("warn");
+    note.textContent="最終更新から時間が経過しています。JRAの番組公開状況とGitHub Actionsを確認してください。";
+  }else{
+    badge.textContent="⚠ データが古い可能性";badge.classList.add("stale");
+    note.textContent="最終更新から72時間を超えています。GitHub Actionsの実行結果を確認してください。";
+  }
+}
+async function loadScheduleMonitor(){
+  try{
+    const url=new URL("./data/jra-schedule.json",document.baseURI);url.searchParams.set("monitor",Date.now());
+    const res=await fetch(url.href,{cache:"no-store"});
+    if(!res.ok)throw Error(`HTTP ${res.status}`);
+    const json=await res.json();
+    renderScheduleMonitor(json);
+  }catch(e){
+    renderScheduleMonitor(null);
+    console.warn("Schedule monitor unavailable",e);
+  }
+}
+
 async function loadJraSchedule(date){
   if(!date)return;
   $("scheduleStatus").textContent="保存済み開催情報を読み込み中…";
@@ -68,6 +112,8 @@ async function loadJraSchedule(date){
   resetRaceSelect();window.KEIBA_SCHEDULE=[];
   await loadBundledSchedule(date);
 }
+
+loadScheduleMonitor();
 
 $("date").addEventListener("change",()=>loadJraSchedule($("date").value));$("course").addEventListener("change",()=>{const c=$("course").value;const races=window.KEIBA_SCHEDULE.filter(x=>x.course===c);setRaceOptions(races);$("raceStatus").textContent=races.length?`${races.length}レースを表示しています。`:"レース情報がありません。"});$("race").addEventListener("change",()=>{const r=window.KEIBA_SCHEDULE.find(x=>x.course===$("course").value&&String(x.race)===$("race").value);window.KEIBA_SELECTED_RACE=r||null;showRaceMeta(r)});
 
