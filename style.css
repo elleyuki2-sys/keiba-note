@@ -115,3 +115,17 @@ html,body{max-width:100%;overflow-x:hidden}
 
 /* Animated rainbow profit bars */
 #chart{overflow:visible}
+
+/* V5.5.3: mobile race-entry layout and horse-number input */
+.horseInputWrap{display:flex;align-items:stretch;gap:5px;margin-top:6px;min-width:0}
+.horseInputWrap .bet-horses{flex:1;min-width:0;margin-top:0!important}
+.horseHyphen{flex:0 0 42px;padding:0 8px;background:#f3f4f6;color:#111827;border:1px solid #d1d5db;border-radius:9px;font-size:20px;line-height:1}
+.horseHyphen:active{background:#e5e7eb}
+@media(max-width:600px){
+  .raceBaseForm{grid-template-columns:1fr!important;gap:11px!important}
+  .raceBaseForm label:first-child{grid-column:auto!important}
+  .raceBaseForm input,.raceBaseForm select{height:44px;padding:8px 10px}
+  .raceBaseForm .scheduleStatus{margin-top:4px;font-size:10px;line-height:1.35}
+  .horseInputWrap{gap:5px}
+  .horseHyphen{flex-basis:44px}
+}
