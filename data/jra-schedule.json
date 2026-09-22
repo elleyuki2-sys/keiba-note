@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-09-20T10:06:25+09:00",
+  "updatedAt": "2026-09-22T10:05:34+09:00",
   "source": "JRA official daily program (direct + Jina server-side fallback)",
   "races": [
     {
@@ -1440,6 +1440,150 @@
       "surface": "ダ",
       "startTime": "16:30",
       "raceKey": "2026-09-21-阪神-12",
+      "meeting": "4回7日"
+    },
+    {
+      "date": "2026-09-22",
+      "course": "中山",
+      "race": 1,
+      "raceName": "障害3歳以上未勝利",
+      "raceCondition": "障害3歳以上未勝利 2,880（ダ）定量",
+      "distance": "2880m",
+      "surface": "ダ",
+      "startTime": "09:45",
+      "raceKey": "2026-09-22-中山-1",
+      "meeting": "4回7日"
+    },
+    {
+      "date": "2026-09-22",
+      "course": "中山",
+      "race": 2,
+      "raceName": "2歳未勝利",
+      "raceCondition": "2歳未勝利 1,200（芝・外）",
+      "distance": "1200m",
+      "surface": "芝・外",
+      "startTime": "10:20",
+      "raceKey": "2026-09-22-中山-2",
+      "meeting": "4回7日"
+    },
+    {
+      "date": "2026-09-22",
+      "course": "中山",
+      "race": 3,
+      "raceName": "2歳未勝利",
+      "raceCondition": "2歳未勝利 1,200（ダ）",
+      "distance": "1200m",
+      "surface": "ダ",
+      "startTime": "10:50",
+      "raceKey": "2026-09-22-中山-3",
+      "meeting": "4回7日"
+    },
+    {
+      "date": "2026-09-22",
+      "course": "中山",
+      "race": 4,
+      "raceName": "2歳未勝利",
+      "raceCondition": "2歳未勝利 1,800（芝）",
+      "distance": "1800m",
+      "surface": "芝",
+      "startTime": "11:20",
+      "raceKey": "2026-09-22-中山-4",
+      "meeting": "4回7日"
+    },
+    {
+      "date": "2026-09-22",
+      "course": "中山",
+      "race": 5,
+      "raceName": "2歳新馬",
+      "raceCondition": "2歳新馬 1,600（芝・外）（牝）",
+      "distance": "1600m",
+      "surface": "芝・外",
+      "startTime": "12:10",
+      "raceKey": "2026-09-22-中山-5",
+      "meeting": "4回7日"
+    },
+    {
+      "date": "2026-09-22",
+      "course": "中山",
+      "race": 6,
+      "raceName": "2歳新馬",
+      "raceCondition": "2歳新馬 2,000（芝）",
+      "distance": "2000m",
+      "surface": "芝",
+      "startTime": "12:40",
+      "raceKey": "2026-09-22-中山-6",
+      "meeting": "4回7日"
+    },
+    {
+      "date": "2026-09-22",
+      "course": "中山",
+      "race": 7,
+      "raceName": "3歳以上1勝クラス",
+      "raceCondition": "3歳以上1勝クラス 1,800（ダ）定量",
+      "distance": "1800m",
+      "surface": "ダ",
+      "startTime": "13:10",
+      "raceKey": "2026-09-22-中山-7",
+      "meeting": "4回7日"
+    },
+    {
+      "date": "2026-09-22",
+      "course": "中山",
+      "race": 8,
+      "raceName": "3歳以上1勝クラス",
+      "raceCondition": "3歳以上1勝クラス 2,200（芝・外）定量",
+      "distance": "2200m",
+      "surface": "芝・外",
+      "startTime": "13:40",
+      "raceKey": "2026-09-22-中山-8",
+      "meeting": "4回7日"
+    },
+    {
+      "date": "2026-09-22",
+      "course": "中山",
+      "race": 9,
+      "raceName": "**鋸山特別** 3歳以上2勝クラス",
+      "raceCondition": "**鋸山特別** 3歳以上2勝クラス 1,800（ダ）（牝）定量",
+      "distance": "1800m",
+      "surface": "ダ",
+      "startTime": "14:10",
+      "raceKey": "2026-09-22-中山-9",
+      "meeting": "4回7日"
+    },
+    {
+      "date": "2026-09-22",
+      "course": "中山",
+      "race": 10,
+      "raceName": "**2006メモリアル ディープインパクトカップ** 3歳以上2勝クラス",
+      "raceCondition": "**2006メモリアル ディープインパクトカップ** 3歳以上2勝クラス 1,600（芝・外）定量",
+      "distance": "1600m",
+      "surface": "芝・外",
+      "startTime": "14:50",
+      "raceKey": "2026-09-22-中山-10",
+      "meeting": "4回7日"
+    },
+    {
+      "date": "2026-09-22",
+      "course": "中山",
+      "race": 11,
+      "raceName": "**JRAアニバーサリーステークス** 3歳以上3勝クラス",
+      "raceCondition": "**JRAアニバーサリーステークス** 3歳以上3勝クラス 1,800（ダ）ハンデ",
+      "distance": "1800m",
+      "surface": "ダ",
+      "startTime": "15:30",
+      "raceKey": "2026-09-22-中山-11",
+      "meeting": "4回7日"
+    },
+    {
+      "date": "2026-09-22",
+      "course": "中山",
+      "race": 12,
+      "raceName": "3歳以上1勝クラス",
+      "raceCondition": "3歳以上1勝クラス 1,200（ダ）定量",
+      "distance": "1200m",
+      "surface": "ダ",
+      "startTime": "16:10",
+      "raceKey": "2026-09-22-中山-12",
       "meeting": "4回7日"
     },
     {
