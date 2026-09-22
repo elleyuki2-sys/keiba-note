@@ -86,6 +86,7 @@ create table if not exists public.keiba_predictions (
   updated_at timestamptz not null default now(),
   primary key (user_id, id)
 );
+alter table public.keiba_predictions add column if not exists result_data jsonb not null default '{}'::jsonb;
 alter table public.keiba_predictions enable row level security;
 drop policy if exists "Users can read their own predictions" on public.keiba_predictions;
 create policy "Users can read their own predictions" on public.keiba_predictions for select to authenticated using ((select auth.uid())=user_id);
@@ -98,3 +99,20 @@ create policy "Users can delete their own predictions" on public.keiba_predictio
 create index if not exists keiba_predictions_user_date_idx on public.keiba_predictions (user_id,date desc);
 grant select,insert,update,delete on table public.keiba_predictions to authenticated;
 revoke all on table public.keiba_predictions from anon;
+
+
+-- V5.6.1: prediction data is independent from purchased bets and result data.
+alter table public.keiba_predictions add column if not exists race_key text not null default '';
+alter table public.keiba_predictions add column if not exists race_name text not null default '';
+alter table public.keiba_predictions add column if not exists race_condition text not null default '';
+alter table public.keiba_predictions add column if not exists distance text not null default '';
+alter table public.keiba_predictions add column if not exists surface text not null default '';
+alter table public.keiba_predictions add column if not exists field_size integer not null default 0;
+alter table public.keiba_predictions add column if not exists going text not null default '';
+alter table public.keiba_predictions add column if not exists fourth text not null default '';
+alter table public.keiba_predictions add column if not exists fifth text not null default '';
+alter table public.keiba_predictions add column if not exists status text not null default 'HOLD';
+alter table public.keiba_predictions add column if not exists prediction_time timestamptz not null default now();
+alter table public.keiba_predictions add column if not exists market_snapshot jsonb not null default '{}'::jsonb;
+alter table public.keiba_predictions add column if not exists horse_evaluations jsonb not null default '{}'::jsonb;
+create index if not exists keiba_predictions_user_race_key_idx on public.keiba_predictions (user_id, race_key);

@@ -1,0 +1,40 @@
+name: Update JRA results
+
+on:
+  # JST: 11:00, 14:00, 17:00, 20:00. GitHub Actions cron is UTC.
+  schedule:
+    - cron: "0 2,5,8,11 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install PDF text extractor
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y poppler-utils
+
+      - name: Refresh JRA schedule first
+        run: python3 tools/update_schedule.py
+
+      - name: Update official JRA results
+        run: python3 tools/update_results.py
+
+      - name: Commit result data when changed
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/jra-results.json data/jra-schedule.json
+          if git diff --cached --quiet; then
+            echo "No JRA data changes."
+            exit 0
+          fi
+          git commit -m "Update JRA result data"
+          git push

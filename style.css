@@ -129,3 +129,8 @@ html,body{max-width:100%;overflow-x:hidden}
   .horseInputWrap{gap:5px}
   .horseHyphen{flex-basis:44px}
 }
+
+/* V5.6.0: AI result linkage */
+.aiResultStatus{margin-top:5px;font-size:11px;line-height:1.4}.predictionResult{display:flex;flex-direction:column;gap:5px}.predictionResultLine{display:block;font-size:11px;line-height:1.5;color:#374151}.predictionResult .predictionResultLine:last-child{font-weight:800;margin-top:3px;padding-top:5px;border-top:1px dashed #e5e7eb}@media(max-width:600px){.aiResultStatus{font-size:10px}.predictionResultLine{font-size:10px}}
+
+.aiForm label input,.aiForm label select,.aiForm label textarea{min-width:0}.predictionMeta,.predictionMarket,.predictionBetLink{font-size:.82rem;margin-top:6px}.predictionBadges{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}.predictionBadges .badge{font-size:.78rem}.predictionResultLine{display:block;margin-top:4px}.prediction .badge.hit{font-weight:700}.aiStat{min-width:100px}.aiPanel .aiForm{grid-template-columns:repeat(2,minmax(0,1fr))}@media(max-width:680px){.aiPanel .aiForm{grid-template-columns:1fr}.predictionBadges{gap:4px}.predictionMarket{line-height:1.5}}
