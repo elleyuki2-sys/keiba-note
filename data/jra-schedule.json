@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-09-23T11:15:43+09:00",
+  "updatedAt": "2026-09-23T14:15:06+09:00",
   "source": "JRA official daily program (direct + Jina server-side fallback)",
   "races": [
     {
@@ -1854,8 +1854,8 @@
       "date": "2026-09-26",
       "course": "阪神",
       "race": 11,
-      "raceName": "**第30回 シリウスステークス（GⅢ）** 3歳以上オープン",
-      "raceCondition": "**第30回 シリウスステークス（GⅢ）** 3歳以上オープン 2,000（ダ）ハンデ",
+      "raceName": "[**第30回 シリウスステークス（GⅢ）**](http://www.jra.go.jp/keiba/race/089.html) 3歳以上オープン",
+      "raceCondition": "[**第30回 シリウスステークス（GⅢ）**](http://www.jra.go.jp/keiba/race/089.html) 3歳以上オープン 2,000（ダ）ハンデ",
       "distance": "2000m",
       "surface": "ダ",
       "startTime": "15:45",
