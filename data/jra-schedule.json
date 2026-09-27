@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-09-27T11:15:21+09:00",
+  "updatedAt": "2026-09-27T17:16:03+09:00",
   "source": "JRA official daily program (direct + Jina server-side fallback)",
   "races": [
     {
@@ -2574,8 +2574,8 @@
       "date": "2026-10-04",
       "course": "京都",
       "race": 11,
-      "raceName": "**第61回 農林水産省賞典 京都大賞典（GⅡ）** 3歳以上オープン",
-      "raceCondition": "**第61回 農林水産省賞典 京都大賞典（GⅡ）** 3歳以上オープン 2,400（芝・外）別定",
+      "raceName": "[**第61回 農林水産省賞典 京都大賞典（GⅡ）**](http://www.jra.go.jp/keiba/race/091.html) 3歳以上オープン",
+      "raceCondition": "[**第61回 農林水産省賞典 京都大賞典（GⅡ）**](http://www.jra.go.jp/keiba/race/091.html) 3歳以上オープン 2,400（芝・外）別定",
       "distance": "2400m",
       "surface": "芝・外",
       "startTime": "15:30",
@@ -2718,8 +2718,8 @@
       "date": "2026-10-04",
       "course": "東京",
       "race": 11,
-      "raceName": "**第77回 毎日王冠（GⅡ）** 3歳以上オープン",
-      "raceCondition": "**第77回 毎日王冠（GⅡ）** 3歳以上オープン 1,800（芝）別定",
+      "raceName": "[**第77回 毎日王冠（GⅡ）**](http://www.jra.go.jp/keiba/race/090.html) 3歳以上オープン",
+      "raceCondition": "[**第77回 毎日王冠（GⅡ）**](http://www.jra.go.jp/keiba/race/090.html) 3歳以上オープン 1,800（芝）別定",
       "distance": "1800m",
       "surface": "芝",
       "startTime": "15:45",
