@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-10-12T17:53:32+09:00",
+  "updatedAt": "2026-10-13T05:12:59+09:00",
   "source": "JRA official daily program (direct + Jina server-side fallback)",
   "races": [
     {
@@ -5016,8 +5016,8 @@
       "date": "2026-10-25",
       "course": "京都",
       "race": 11,
-      "raceName": "**第87回 菊花賞（GⅠ）** 3歳オープン",
-      "raceCondition": "**第87回 菊花賞（GⅠ）** 3歳オープン 3,000（芝・外）牡・牝",
+      "raceName": "[**第87回 菊花賞（GⅠ）**](http://www.jra.go.jp/keiba/g1/kikka.html) 3歳オープン",
+      "raceCondition": "[**第87回 菊花賞（GⅠ）**](http://www.jra.go.jp/keiba/g1/kikka.html) 3歳オープン 3,000（芝・外）牡・牝",
       "distance": "3000m",
       "surface": "芝・外",
       "startTime": "15:40",
