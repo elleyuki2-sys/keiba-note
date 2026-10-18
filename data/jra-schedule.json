@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-10-18T16:06:24+09:00",
+  "updatedAt": "2026-10-18T21:32:26+09:00",
   "source": "JRA official daily program (direct + Jina server-side fallback)",
   "races": [
     {
@@ -4872,8 +4872,8 @@
       "date": "2026-10-24",
       "course": "東京",
       "race": 11,
-      "raceName": "**第15回 アルテミスステークス（GⅢ）** 2歳オープン",
-      "raceCondition": "**第15回 アルテミスステークス（GⅢ）** 2歳オープン 1,600（芝）（牝）",
+      "raceName": "[**第15回 アルテミスステークス（GⅢ）**](http://www.jra.go.jp/keiba/race/097.html) 2歳オープン",
+      "raceCondition": "[**第15回 アルテミスステークス（GⅢ）**](http://www.jra.go.jp/keiba/race/097.html) 2歳オープン 1,600（芝）（牝）",
       "distance": "1600m",
       "surface": "芝",
       "startTime": "15:45",
@@ -5878,8 +5878,8 @@
       "date": "2026-11-01",
       "course": "東京",
       "race": 11,
-      "raceName": "**第174回 天皇賞（秋）（GⅠ）** 3歳以上オープン",
-      "raceCondition": "**第174回 天皇賞（秋）（GⅠ）** 3歳以上オープン 2,000（芝）定量",
+      "raceName": "[**第174回 天皇賞（秋）（GⅠ）**](http://www.jra.go.jp/keiba/g1/akiten.html) 3歳以上オープン",
+      "raceCondition": "[**第174回 天皇賞（秋）（GⅠ）**](http://www.jra.go.jp/keiba/g1/akiten.html) 3歳以上オープン 2,000（芝）定量",
       "distance": "2000m",
       "surface": "芝",
       "startTime": "15:40",
