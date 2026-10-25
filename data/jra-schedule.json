@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-10-25T16:27:16+09:00",
+  "updatedAt": "2026-10-25T22:05:56+09:00",
   "source": "JRA official daily program (direct + Jina server-side fallback)",
   "races": [
     {
@@ -5446,8 +5446,8 @@
       "date": "2026-10-31",
       "course": "京都",
       "race": 11,
-      "raceName": "**第31回 KBS京都賞 ファンタジーステークス（GⅢ）** 2歳オープン",
-      "raceCondition": "**第31回 KBS京都賞 ファンタジーステークス（GⅢ）** 2歳オープン 1,400（芝・外）（牝）",
+      "raceName": "[**第31回 KBS京都賞 ファンタジーステークス（GⅢ）**](http://www.jra.go.jp/keiba/race/098.html) 2歳オープン",
+      "raceCondition": "[**第31回 KBS京都賞 ファンタジーステークス（GⅢ）**](http://www.jra.go.jp/keiba/race/098.html) 2歳オープン 1,400（芝・外）（牝）",
       "distance": "1400m",
       "surface": "芝・外",
       "startTime": "15:45",
